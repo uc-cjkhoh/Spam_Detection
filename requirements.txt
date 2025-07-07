@@ -1,0 +1,8 @@
+torch
+pickle-mixin
+numpy
+sentence_transformers
+pandas
+scikit-learn
+keras
+nltk
