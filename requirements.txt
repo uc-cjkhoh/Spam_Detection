@@ -1,4 +1,7 @@
 mysql-connector_python
-numpy==2.3.2
-pandas==2.3.1
+numpy
+pandas
 ftfy
+jupyter
+emoji
+pyyaml

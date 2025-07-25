@@ -5,7 +5,6 @@ pd.set_option('display.max_rows', None)
 
 import src.data_loader
 import src.preprocess
-import src.eda
 
 if __name__ == '__main__':
     config_path = './configs/config.yaml'
@@ -26,13 +25,10 @@ if __name__ == '__main__':
     
     ## Get data
     data = pd.DataFrame(cur.fetchall(), columns=cfg['data']['column_name'])
-    
-    ## Basic EDA
-    
-    
+     
     ## Preprocess data 
-    # 1. Try the best to convert mojibake to normal utf-8
-    data = src.preprocess.fix_mojibake(data.copy())
+    # 1. Try the best to normalize messages
+    data = src.preprocess.normalize(data.copy())
     
     # 2. Feature Engineering
     data = src.preprocess.feature_engineering(data.copy())

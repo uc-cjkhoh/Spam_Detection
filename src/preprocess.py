@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 # 2. Feature Engineering
 # 3. Remove unnecessary row(s) or column(s)
  
-def fix_mojibake(data: pd.DataFrame) -> pd.DataFrame:
+def normalize(data: pd.DataFrame) -> pd.DataFrame:
     """
     Convert all message to utf-8 type
 
@@ -28,7 +28,6 @@ def fix_mojibake(data: pd.DataFrame) -> pd.DataFrame:
         data['decoded_message'] = data['decoded_message'].apply(str.lower)
         data['decoded_message'] = data['decoded_message'].apply(lambda x: x.replace('\n', ' '))
         data['decoded_message'] = data['decoded_message'].apply(lambda x: emoji.replace_emoji(x, ''))
-        data['decoded_message_length'] = data['message'].apply(len)
     except KeyError:
         print('Column name is not defined')
         
@@ -74,6 +73,9 @@ def feature_engineering(data: pd.DataFrame) -> pd.DataFrame:
         return filter_1
     
     try:
+        # Check decoded message length
+        data['decoded_message_length'] = data['decoded_message'].apply(len)
+        
         # 1. Has only numeric or special characters
         data['all_num_special'] = np.where(
             data['message_length'] == data['decoded_message'].apply(find_numeric_length) + \
