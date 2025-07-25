@@ -1,77 +1,47 @@
-import numpy as np
+import os 
+import yaml
 import pandas as pd
-import utils
-import torch  
+pd.set_option('display.max_rows', None)
 
-from torch.utils.data import Dataset, DataLoader
-from imblearn.over_sampling import RandomOverSampler
-from tqdm import tqdm
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
-from sentence_transformers import SentenceTransformer 
-
-# class for input data strcuture
-class Data(Dataset):
-    def __init__(self, x_train, y_train):
-        self.x = torch.from_numpy(x_train.astype(np.float32))
-        self.y = torch.from_numpy(y_train).type(torch.LongTensor)
-        self.len = self.x.shape[0]
-
-    def __getitem__(self, index):
-        return self.x[index], self.y[index]
-
-    def __len__(self):
-        return self.len 
-
+import src.data_loader
+import src.preprocess
+import src.eda
 
 if __name__ == '__main__':
-    # get dataset
-    data = pd.read_csv('C:/Users/cj_khoh/Documents/UnifiedComms/Data/spam_ham_dataset.csv', encoding='ISO-8859-1')
-    data = pd.DataFrame(data)
-    data = data[['label', 'text']] 
-    # data['text'] = utils.clean_text(data['text'])
-  
-    # text embedding model
-    text_embedding_model = SentenceTransformer('all-mpnet-base-v2')
+    config_path = './configs/config.yaml'
 
-    # separate train and test data
-    Y = np.array(data.label)
-    Y = pd.factorize(Y)[0]
+    ## Check if config file exists
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f'Config file is not found in {config_path}')
+    else:
+        with open(r'./configs/config.yaml') as f:
+            cfg = yaml.load(f, Loader=yaml.FullLoader)
 
-    X = data.text
+    ## Connect to database
+    database = src.data_loader.Database('mysql', config_path).connect_db()
+     
+    ## Get a cursor and execute query in config file
+    cur = database.cursor()
+    cur.execute(cfg['data']['query'])
     
-    # embed train sentence
-    embedded_x = []
-    for sent in tqdm(X):
-        embedded_x.append(text_embedding_model.encode(sent))    
-    embedded_x = np.array(embedded_x) 
- 
-    # over-sampling
-    X, Y = RandomOverSampler().fit_resample(embedded_x, Y)
+    ## Get data
+    data = pd.DataFrame(cur.fetchall(), columns=cfg['data']['column_name'])
     
-    # split data
-    x_train, x_test, y_train, y_test = train_test_split(
-        X, Y, test_size=0.2, random_state=20, shuffle=True)
- 
-    # group data
-    train_data = Data(x_train, y_train)
-    test_data = Data(x_test, y_test)
-
-    # initialize batch data for nn_model
-    batch_size = 32
-    trainLoader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=2)
-
-    # train model
-    model = utils.train_model(trainLoader).eval()
-
-    # initializ batch data for testing
-    testLoader = DataLoader(test_data, batch_size=batch_size, shuffle=True, num_workers=2)
-
-    # predict
-    acc, precision, recall, f1_score, pred = utils.predict(model, testLoader) 
+    ## Basic EDA
     
-    print(f'Accuracy: {acc}')
-    print(f'Precision: {precision}')
-    print(f'Recall: {recall}')
-    print(f'F1-Score: {f1_score}')
     
+    ## Preprocess data 
+    # 1. Try the best to convert mojibake to normal utf-8
+    data = src.preprocess.fix_mojibake(data.copy())
+    
+    # 2. Feature Engineering
+    data = src.preprocess.feature_engineering(data.copy())
+    
+
+    print(
+        data[
+            ~((data['all_num_special'] == True) | (data['custom'] == True))
+        ][['decoded_message', 'url_link', 'custom']].reset_index(drop=True))
+    # Train data
+    
+    # Save result and model
