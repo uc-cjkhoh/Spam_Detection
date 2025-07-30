@@ -5,3 +5,5 @@ ftfy
 jupyter
 emoji
 pyyaml
+lingua-language-detector
+scikit-learn

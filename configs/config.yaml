@@ -14,4 +14,4 @@ data:
     FROM 
       sms_spam_cd.data_tdr_spam_filter 
     LIMIT 10000'
-  column_name: ['from', 'message_length',  'message']
+  column_name: ['from', 'message_length',  'message'] 
