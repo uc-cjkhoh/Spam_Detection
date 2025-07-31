@@ -9,6 +9,7 @@ import sys
  
 from . decorators import timer
 
+from addict import Dict
 from lingua import Language, LanguageDetectorBuilder
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
@@ -19,12 +20,10 @@ _robust_scaler = RobustScaler()
 _standard_scaler = StandardScaler()
 
 _config_path = r'./configs/config.yaml'
-
 if not os.path.exists(_config_path):
     raise FileNotFoundError(f'Config file is not found in {_config_path}')
-
 with open(_config_path) as f:
-    cfg = yaml.load(f, Loader=yaml.FullLoader)
+    cfg = Dict(yaml.load(f, Loader=yaml.FullLoader))
 
 
 class custom_filter_regex:
@@ -78,7 +77,7 @@ def text_normalize(data: pd.DataFrame, filter=None):
             
     
     try:
-        data['decoded_message'] = data[cfg['data']['target_column']].apply(ftfy.fix_text)
+        data['decoded_message'] = data[cfg.data.target_column].apply(ftfy.fix_text)
         data['decoded_message'] = data['decoded_message'].apply(str.strip)
         data['decoded_message'] = data['decoded_message'].apply(str.lower)
         data['decoded_message'] = data['decoded_message'].apply(lambda x: x.replace('\n', ' '))

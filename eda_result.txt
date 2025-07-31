@@ -1,0 +1,12 @@
+Any missing value: 
+from                0
+message_length      0
+message             0
+decoded_message     0
+filtered_message    0
+dtype: int64
+
+Any duplicated value: 
+False    264
+True     236
+Name: count, dtype: int64

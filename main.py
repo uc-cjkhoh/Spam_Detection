@@ -1,12 +1,15 @@
-import os 
-import yaml
-import pandas as pd
+
 import src.data_loader
 import src.preprocess
 import src.model
 import src.eda
 
+import os 
+import yaml
+import pandas as pd
 pd.set_option('display.max_rows', None)
+
+from addict import Dict
 
 
 if __name__ == '__main__':
@@ -17,28 +20,29 @@ if __name__ == '__main__':
         raise FileNotFoundError(f'Config file is not found in {config_path}')
     else:
         with open(r'./configs/config.yaml') as f:
-            cfg = yaml.load(f, Loader=yaml.FullLoader)
+            cfg = Dict(yaml.load(f, Loader=yaml.FullLoader))
 
     ### Connect to database
     database = src.data_loader.Database('mysql', config_path).connect_db()
      
     ### Get a cursor and execute query in config file
     cur = database.cursor()
-    cur.execute(cfg['data']['query'])
+    cur.execute(cfg.data.query)
     
     ### Get data
-    data = pd.DataFrame(cur.fetchall(), columns=cfg['data']['column_name'])
+    data = pd.DataFrame(cur.fetchall(), columns=cfg.data.column_name)
      
     ### Preprocess data 
     # 1. Try the best to normalize messages
     data = src.preprocess.text_normalize(data.copy(), filter=True) 
     
     ### EDA
-    # 1. Missing value or Duplicate value
-    has_missing, has_duplicates = src.eda.basic_eda(data.copy())
-    
-    if has_missing:
+    # 1. Check any missing value or duplicate value
+    src.eda.basic_eda(data.copy())
+    if cfg.data.drop_null:
         data = data.dropna()
+    if cfg.data.drop_duplicates:
+        data = data.drop_duplicates()
     
     ### 2. Feature Engineering
     data = src.preprocess.feature_engineering(data.copy())
@@ -54,7 +58,7 @@ if __name__ == '__main__':
     #     'standard_scaled': standard_scaled
     # })
     
-    embedded_message = src.model.text_embedding(data['decoded_' + cfg['data']['target_column']])
+    # embedded_message = src.model.text_embedding(data['decoded_' + cfg.data.target_column])
     
     # print(
     #     data[data['custom'] != 1][[

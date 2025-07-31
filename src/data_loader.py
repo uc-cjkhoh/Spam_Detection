@@ -2,6 +2,8 @@ import os
 import yaml
 import mysql.connector
 
+from addict import Dict
+
 class Database:
     def __init__(self, source, config_path='./configs/config.yaml'):
         self.source = source
@@ -23,7 +25,7 @@ class Database:
             raise FileNotFoundError(f'Config file is not found in {self.config_path}')
         else:
             with open(r'./configs/config.yaml') as f:
-                return yaml.load(f, Loader=yaml.FullLoader)
+                return Dict(yaml.load(f, Loader=yaml.FullLoader))
     
     def connect_db(self):
         """
@@ -38,10 +40,10 @@ class Database:
         else:
             try:
                 return mysql.connector.connect(
-                    host=self.cfg['server'][self.source + '_host'],
-                    port=self.cfg['server'][self.source + '_port'],
-                    user=self.cfg['server'][self.source + '_user'],
-                    password=self.cfg['server'][self.source + '_password']
+                    host=self.cfg.server.host,
+                    port=self.cfg.server.port,
+                    user=self.cfg.server.user,
+                    password=self.cfg.server.password
                 )
             except mysql.connector.Error as e:
                 print(f'Connection failed due to: {e}')

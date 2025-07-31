@@ -1,9 +1,9 @@
 server:
   source: 'mysql'
-  mysql_host: "10.168.51.196"
-  mysql_port: 3306
-  mysql_user: 'unified'
-  mysql_password: 'unified'
+  host: "10.168.51.196"
+  port: 3306
+  user: 'unified'
+  password: 'unified'
 
 data:
   query: 
@@ -14,9 +14,12 @@ data:
     FROM 
       sms_spam_cd.data_tdr_spam_filter 
     LIMIT 500'
-  column_name: ['from', 'message_length',  'message'] 
+  column_name: ['from', 'message_length',  'message'] # need to match the number of columns from `query`
   target_column: 'message'
+  drop_null: True
+  drop_duplicates: False
 
-model:
+models:
   text_embedding:
-    batch_size: 2
+    model_name: 'jinaai/jina-embeddings-v3'
+    batch_size: 4
