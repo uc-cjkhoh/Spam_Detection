@@ -1,6 +1,9 @@
 import pandas as pd
 
+from . decorators import timer
+
 # Basic EDA
+@timer
 def basic_eda(data):
     # 1. Any missing value ?
     print('Any missing value: ')

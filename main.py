@@ -3,7 +3,7 @@ import yaml
 import pandas as pd
 import src.data_loader
 import src.preprocess
-# import src.model
+import src.model
 import src.eda
 
 pd.set_option('display.max_rows', None)
@@ -31,38 +31,48 @@ if __name__ == '__main__':
      
     ### Preprocess data 
     # 1. Try the best to normalize messages
-    data = src.preprocess.text_normalize(data.copy())
+    data = src.preprocess.text_normalize(data.copy(), filter=True) 
     
     ### EDA
     # 1. Missing value or Duplicate value
-    has_missing, has_duplicates = src.eda.basic_eda(data)
+    has_missing, has_duplicates = src.eda.basic_eda(data.copy())
     
     if has_missing:
         data = data.dropna()
     
-    if has_duplicates:
-        data = data.drop_duplicates()
-    
     ### 2. Feature Engineering
     data = src.preprocess.feature_engineering(data.copy())
-     
-    # filtered_data = data[~((data['has_no_word_char'] == True) | (data['custom'] == True))][
-    #     ['decoded_message', 'decoded_message_length', 'has_url_link', 'custom']
-    # ].reset_index(drop=True)
     
-    print(
-        data[data['custom'] == 0][[
-            'decoded_message', 
-            'decoded_message_length', 
-            'num_spec_percent', 
-            'has_url_link', 
-            'has_chinese',
-            'has_english',
-            'has_malay',
-            'has_phone_number', 
-            'custom' # filter patterns discovered when developing
-            
-        ]].reset_index(drop=True)
-    )
+    ### 3. Data normalization
+    numeric_data = data.select_dtypes(exclude=['object'])
+    minmax_scaled, robust_scaled, standard_scaled = src.preprocess.data_normalization(numeric_data.copy())
+    
+    ### 4. Model Training
+    # model, result = src.model.train_model({
+    #     'min_max_scaled': minmax_scaled,
+    #     'robust_scaled': robust_scaled,
+    #     'standard_scaled': standard_scaled
+    # })
+    
+    embedded_message = src.model.text_embedding(data['decoded_' + cfg['data']['target_column']])
+    
+    # print(
+    #     data[data['custom'] != 1][[
+    #         'filtered_message',
+    #         'filtered_message_length',
+    #         'filtered_message_words',
+    #         'decoded_message', 
+    #         'decoded_message_length', 
+    #         'number_of_words',
+    #         'num_spec_percent',
+    #         'is_chinese',
+    #         'is_english',
+    #         'is_malay',
+    #         'is_tamil',
+    #         'is_other',
+    #         'has_url_link',
+    #         'has_phone_number'
+    #     ]].reset_index(drop=True)
+    # )
     
     

@@ -7,3 +7,5 @@ emoji
 pyyaml
 lingua-language-detector
 scikit-learn
+sentence_transformers
+einops

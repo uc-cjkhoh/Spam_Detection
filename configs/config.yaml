@@ -13,5 +13,10 @@ data:
       `payload` 
     FROM 
       sms_spam_cd.data_tdr_spam_filter 
-    LIMIT 10000'
+    LIMIT 500'
   column_name: ['from', 'message_length',  'message'] 
+  target_column: 'message'
+
+model:
+  text_embedding:
+    batch_size: 2
