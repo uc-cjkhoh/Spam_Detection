@@ -15,8 +15,7 @@ This project provides a pipeline for detecting spam in SMS messages sourced dire
 │   ├── train.py              # (Reserved for training logic)
 │   ├── model.py              # (Reserved for model definition)
 │   └── __pycache__/          # Python cache files
-├── test/                     # (Reserved for test scripts)
-├── venv/                     # Python virtual environment
+├── test/                     # (Reserved for test scripts) 
 ├── main.py                   # Main pipeline script
 ├── requirements.txt          # Python dependencies
 ├── copilot-instructions.md   # Instructions for GitHub Copilot
