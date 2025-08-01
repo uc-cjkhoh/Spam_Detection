@@ -13,6 +13,7 @@ Spam_Detection/
 ├── main.py
 ├── eda_result.txt
 ├── configs/
+<<<<<<< HEAD
 │   └── config.yaml
 ├── result/
 │   ├── 20250801-1509_decoded_message.csv
@@ -24,6 +25,22 @@ Spam_Detection/
     ├── train.py
     ├── model.py
     └── decorators.py
+=======
+│   └── config.yaml           # Configuration for database and model parameters
+├── models/                   # (Reserved for trained models)
+├── src/
+│   ├── data_loader.py        # MySQL database connection and data retrieval
+│   ├── preprocess.py         # Data cleaning and feature engineering
+│   ├── eda.py                # Exploratory data analysis utilities
+│   ├── train.py              # (Reserved for training logic)
+│   ├── model.py              # Model definition, embedding, and training
+│   └── __pycache__/          # Python cache files
+├── test/                     # (Reserved for test scripts)
+├── main.py                   # Main pipeline script
+├── requirements.txt          # Python dependencies
+├── copilot-instructions.md   # Instructions for GitHub Copilot
+└── README.md                 # Project documentation
+>>>>>>> 7b25d2355867d8f65eb206f5761bede1b10bb05e
 ```
 
 ## File/Folder Descriptions
@@ -73,12 +90,17 @@ Spam_Detection/
 ## Workflow Overview
 
 1. **Configuration**  
+<<<<<<< HEAD
    - Set up database and model parameters in `configs/config.yaml`.
+=======
+   - Database, query, and model settings are managed in [`configs/config.yaml`](configs/config.yaml).
+>>>>>>> 7b25d2355867d8f65eb206f5761bede1b10bb05e
 
 2. **Data Loading**  
    - `src/data_loader.py`: Connects to MySQL and fetches SMS data.
 
 3. **Preprocessing & Feature Engineering**  
+<<<<<<< HEAD
    - `src/preprocess.py`: Cleans and augments data with features.
 
 4. **Exploratory Data Analysis**  
@@ -92,6 +114,40 @@ Spam_Detection/
 
 7. **Results**  
    - Output CSVs are saved in the `result/` folder.
+=======
+   - [`src/preprocess.py`](src/preprocess.py):  
+     - Cleans text (fixes mojibake, strips whitespace, removes emojis, converts to lowercase).
+     - Adds features: message length, numeric/special character counts, URL and phone number detection, language detection, and custom filters.
+
+4. **Exploratory Data Analysis**  
+   - [`src/eda.py`](src/eda.py):  
+     - Provides basic data description and visualization utilities.
+
+5. **Modeling**  
+   - [`src/model.py`](src/model.py):  
+     - Embeds text using transformer models (e.g., SentenceTransformer).
+     - Supports model training and inference using Hugging Face pipelines or custom classifiers.
+     - Handles both text and vector-based classification.
+
+6. **Main Pipeline**  
+   - [`main.py`](main.py):  
+     - Loads configuration and connects to the database.
+     - Fetches data, applies preprocessing, EDA, and feature engineering.
+     - Normalizes data and runs model training/inference.
+     - Saves results with timestamped filenames.
+
+7. **Extensibility**  
+   - Reserved files for advanced training logic (`src/train.py`) and testing (`test/`).
+
+## Key Features
+
+- **Database Integration:** Securely connects and queries MySQL for SMS data.
+- **Robust Preprocessing:** Handles text encoding issues, emoji removal, and extracts relevant features for spam detection.
+- **Feature Engineering:** Identifies URLs, phone numbers, language, and custom patterns in messages.
+- **Flexible Modeling:** Supports both transformer-based text classification and vector-based classification.
+- **Modular Design:** Easily extendable for new models, features, or data sources.
+- **Copilot Instructions:** Coding standards and helper rules in [`copilot-instructions.md`](copilot-instructions.md).
+>>>>>>> 7b25d2355867d8f65eb206f5761bede1b10bb05e
 
 ## Requirements
 
@@ -107,6 +163,10 @@ See `requirements.txt` for dependencies, including:
 - `sentence-transformers`
 - `einops`
 - `jupyter`
+<<<<<<< HEAD
+=======
+- (and others as the project grows)
+>>>>>>> 7b25d2355867d8f65eb206f5761bede1b10bb05e
 
 ## Usage
 
@@ -143,4 +203,8 @@ See `copilot-instructions.md` for coding standards and helper rules.
 ---
 
 **Author:**  
+<<<<<<< HEAD
 Khoh Chia
+=======
+Khoh Chia
+>>>>>>> 7b25d2355867d8f65eb206f5761bede1b10bb05e
