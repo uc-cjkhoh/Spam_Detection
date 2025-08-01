@@ -13,10 +13,7 @@ Spam_Detection/
 ├── main.py
 ├── eda_result.txt
 ├── configs/
-│   └── config.yaml
-├── result/
-│   ├── 20250801-1509_decoded_message.csv
-│   └── 20250801-1514_filtered_message.csv
+│   └── config.yaml 
 └── src/
     ├── data_loader.py
     ├── preprocess.py
@@ -48,10 +45,7 @@ Spam_Detection/
 
 - `configs/config.yaml`  
   Configuration for database connection, queries, and model parameters.
-
-- `result/`  
-  Stores output CSV files with model results.
-
+ 
 - `src/data_loader.py`  
   Handles MySQL database connection and data retrieval.
 
@@ -89,10 +83,7 @@ Spam_Detection/
 
 6. **Main Pipeline**  
    - `main.py`: Orchestrates the entire workflow.
-
-7. **Results**  
-   - Output CSVs are saved in the `result/` folder.
-
+ 
 ## Requirements
 
 See `requirements.txt` for dependencies, including:
