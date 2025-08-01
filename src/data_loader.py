@@ -1,4 +1,5 @@
 import os
+import sys
 import yaml
 import mysql.connector
 
@@ -36,7 +37,7 @@ class Database:
         """
         
         if self.source is None:
-            raise ValueError("Source is not define, make source is define in config.yaml")
+            raise ValueError("Data Loader: Source is not define, make source is define in config.yaml")
         else:
             try:
                 return mysql.connector.connect(
@@ -46,5 +47,6 @@ class Database:
                     password=self.cfg.server.password
                 )
             except mysql.connector.Error as e:
-                print(f'Connection failed due to: {e}')
+                print(f'Data Loader: Connection failed due to: {e}')
+                sys.exit()
                 

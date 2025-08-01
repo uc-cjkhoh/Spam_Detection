@@ -9,6 +9,7 @@ import yaml
 import pandas as pd
 pd.set_option('display.max_rows', None)
 
+from datetime import datetime
 from addict import Dict
 
 
@@ -33,30 +34,37 @@ if __name__ == '__main__':
     data = pd.DataFrame(cur.fetchall(), columns=cfg.data.column_name)
      
     ### Preprocess data 
-    # 1. Try the best to normalize messages
+    # Try the best to normalize messages
     data = src.preprocess.text_normalize(data.copy(), filter=True) 
     
     ### EDA
-    # 1. Check any missing value or duplicate value
-    src.eda.basic_eda(data.copy())
+    # Check data statistic
+    src.eda.basic_eda(data.copy(), title='Raw Data')
     if cfg.data.drop_null:
         data = data.dropna()
     if cfg.data.drop_duplicates:
         data = data.drop_duplicates()
     
-    ### 2. Feature Engineering
+    ### Feature Engineering
     data = src.preprocess.feature_engineering(data.copy())
     
-    ### 3. Data normalization
+    # check the statistic of new dataset
+    src.eda.basic_eda(data.copy(), title='Formatted Data', access_mode='a') 
+    
+    ### Data normalization
+    string_data = data.select_dtypes(include=['object'])
     numeric_data = data.select_dtypes(exclude=['object'])
     minmax_scaled, robust_scaled, standard_scaled = src.preprocess.data_normalization(numeric_data.copy())
-    
-    ### 4. Model Training
-    # model, result = src.model.train_model({
-    #     'min_max_scaled': minmax_scaled,
-    #     'robust_scaled': robust_scaled,
-    #     'standard_scaled': standard_scaled
-    # })
+     
+    ### Model Training
+    for col in string_data.columns:
+        result = src.model.train_model(string_data[col])
+        
+        # save result
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M')
+        filename = f'./result/{timestamp}_{col}.csv'
+        
+        result.to_csv(filename, encoding='utf-8-sig', index=False)
     
     # embedded_message = src.model.text_embedding(data['decoded_' + cfg.data.target_column])
     

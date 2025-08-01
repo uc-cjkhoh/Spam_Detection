@@ -8,13 +8,12 @@ server:
 data:
   query: 
     'SELECT 
-      `smsc_src_addr`, 
       `payload_length`,
       `payload` 
     FROM 
       sms_spam_cd.data_tdr_spam_filter 
-    LIMIT 500'
-  column_name: ['from', 'message_length',  'message'] # need to match the number of columns from `query`
+    LIMIT 10000'
+  column_name: ['message_length',  'message'] # need to match the number of columns from `query`
   target_column: 'message'
   drop_null: True
   drop_duplicates: False
@@ -22,4 +21,8 @@ data:
 models:
   text_embedding:
     model_name: 'jinaai/jina-embeddings-v3'
-    batch_size: 4
+    batch_size: 16
+  
+  spam_detection:
+    model_name: 'mariagrandury/distilbert-base-uncased-finetuned-sms-spam-detection'
+    model_type: 'text-classification'

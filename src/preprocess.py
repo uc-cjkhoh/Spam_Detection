@@ -7,7 +7,7 @@ import yaml
 import os
 import sys
  
-from . decorators import timer
+from . decorators import timer, error_log
 
 from addict import Dict
 from lingua import Language, LanguageDetectorBuilder
@@ -45,7 +45,8 @@ class custom_filter_regex:
     # phone number
     _phone_number = '(?:\+?60|0)1[0-46-9][\s\-]?\d{3}[\s\-]?\d{4}'
     
-    
+
+@error_log
 @timer
 def text_normalize(data: pd.DataFrame, filter=None):
     """
@@ -60,18 +61,18 @@ def text_normalize(data: pd.DataFrame, filter=None):
      
     def filter_message(message: str):
         patterns = [
-            ("imsi",          custom_filter_regex._imsi),
-            ("international", custom_filter_regex._international),
-            ("url_link",      custom_filter_regex._url_link),
-            ("spec_char",     custom_filter_regex._spec_char),
-            ("phone_number",  custom_filter_regex._phone_number),
-            ("all_number",    '\d+'),
-            ("white_space",   '\s+')
+            ("imsi", custom_filter_regex._imsi),
+            ("ussd", custom_filter_regex._international),
+            ("url", custom_filter_regex._url_link),
+            ("phone", custom_filter_regex._phone_number),
+            (" ", custom_filter_regex._spec_char),
+            (" ", '\d+'),
+            (" ", '\s+')
         ]
         
         temp_message = message
         for name, regex in patterns:
-            temp_message = re.sub(regex, ' ', temp_message)
+            temp_message = re.sub(regex, name, temp_message)
         
         return temp_message.strip()
             
@@ -82,6 +83,7 @@ def text_normalize(data: pd.DataFrame, filter=None):
         data['decoded_message'] = data['decoded_message'].apply(str.lower)
         data['decoded_message'] = data['decoded_message'].apply(lambda x: x.replace('\n', ' '))
         data['decoded_message'] = data['decoded_message'].apply(lambda x: emoji.replace_emoji(x, ''))
+        data = data.drop(cfg.data.target_column, axis=1)
         
         if filter:
             data['filtered_message'] = data['decoded_message'].apply(filter_message)
@@ -89,26 +91,21 @@ def text_normalize(data: pd.DataFrame, filter=None):
         else: 
             return data
     except KeyError:
-        print('(Preprocessing.py, KeyError) Column name is not defined, check if column_name and payload_column is the same in ./configs/config.yaml')
+        print('Invalid column, check if column_name and payload_column is the same in ./configs/config.yaml')
         sys.exit()
       
-      
+
+@error_log
 @timer       
 def feature_engineering(data: pd.DataFrame):
     """
-    For all message, check if they:
-        1. Has only numeric or special characters   (Done)
-        2. Emotion of message by sentiment analysis
-        3. Has any url link(s)
-        4. Has phone number(s)                      (Done)
-        5. Involve any money 
-        6. Custom filter 
+    Understand message's patterns and extract them
 
     Args:
         data (pd.DataFrame): data
 
     Returns:
-        pd.DataFrame: data with extra engineered columns
+        pd.DataFrame: data with patterns extracted
     """
     
     # how many number in message
@@ -187,10 +184,11 @@ def feature_engineering(data: pd.DataFrame):
         
         return data 
     except KeyError:
-        print(f'(Preprocessing.py, KeyError) Column name is not defined')
+        print(f'Invalid column, check if column_name and payload_column is the same in ./configs/config.yaml')
         sys.exit()
 
 
+@error_log
 @timer
 def data_normalization(data: pd.DataFrame, scaler=None):
     if scaler == 'min_max':

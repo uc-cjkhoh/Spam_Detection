@@ -1,74 +1,112 @@
 # Spam Detection from MySQL SMS Data
 
-This project provides a pipeline for detecting spam in SMS messages sourced directly from a MySQL database. It includes modules for data loading, preprocessing, feature engineering, exploratory data analysis, and is designed for extensibility with model training and evaluation.
+This project provides a modular pipeline for detecting spam in SMS messages sourced directly from a MySQL database. It covers data loading, preprocessing, feature engineering, exploratory data analysis, and is designed for extensibility with model training and evaluation.
 
 ## Project Structure
 
 ```
+Spam_Detection/
+├── .gitignore
+├── README.md
+├── requirements.txt
+├── copilot-instructions.md
+├── main.py
+├── eda_result.txt
 ├── configs/
-│   └── config.yaml           # Configuration for database and queries
-├── models/                   # (Reserved for trained models)
-├── src/
-│   ├── data_loader.py        # MySQL database connection and data retrieval
-│   ├── preprocess.py         # Data cleaning and feature engineering
-│   ├── eda.py                # Exploratory data analysis utilities
-│   ├── train.py              # (Reserved for training logic)
-│   ├── model.py              # (Reserved for model definition)
-│   └── __pycache__/          # Python cache files
-├── test/                     # (Reserved for test scripts) 
-├── main.py                   # Main pipeline script
-├── requirements.txt          # Python dependencies
-├── copilot-instructions.md   # Instructions for GitHub Copilot
-└── README.md                 # Project documentation
+│   └── config.yaml
+├── result/
+│   ├── 20250801-1509_decoded_message.csv
+│   └── 20250801-1514_filtered_message.csv
+└── src/
+    ├── data_loader.py
+    ├── preprocess.py
+    ├── eda.py
+    ├── train.py
+    ├── model.py
+    └── decorators.py
 ```
+
+## File/Folder Descriptions
+
+- `.gitignore`  
+  Python virtual environment and cache ignore rules.
+
+- `README.md`  
+  Project documentation (this file).
+
+- `requirements.txt`  
+  Python dependencies for the project.
+
+- `copilot-instructions.md`  
+  Coding standards and helper rules for GitHub Copilot.
+
+- `main.py`  
+  Main pipeline script: loads config, fetches data, runs preprocessing, EDA, feature engineering, normalization, and model training.
+
+- `eda_result.txt`  
+  Output of exploratory data analysis (EDA) statistics.
+
+- `configs/config.yaml`  
+  Configuration for database connection, queries, and model parameters.
+
+- `result/`  
+  Stores output CSV files with model results.
+
+- `src/data_loader.py`  
+  Handles MySQL database connection and data retrieval.
+
+- `src/preprocess.py`  
+  Data cleaning, normalization, and feature engineering.
+
+- `src/eda.py`  
+  Exploratory data analysis utilities.
+
+- `src/train.py`  
+  (Reserved for training logic.)
+
+- `src/model.py`  
+  Model definition, embedding, and training logic.
+
+- `src/decorators.py`  
+  (Reserved for decorators/utilities.)
 
 ## Workflow Overview
 
 1. **Configuration**  
-   - Database and query settings are managed in [`configs/config.yaml`](configs/config.yaml).
+   - Set up database and model parameters in `configs/config.yaml`.
 
 2. **Data Loading**  
-   - [`src/data_loader.py`](src/data_loader.py):  
-     - Connects to MySQL using credentials from the config file.
-     - Executes queries to fetch SMS data.
+   - `src/data_loader.py`: Connects to MySQL and fetches SMS data.
 
 3. **Preprocessing & Feature Engineering**  
-   - [`src/preprocess.py`](src/preprocess.py):  
-     - Cleans text (fixes mojibake, strips whitespace, removes emojis, converts to lowercase).
-     - Adds features:
-       - Message length, numeric/special character counts
-       - URL and phone number detection
-       - Custom filters (e.g., messages starting with 'imsi')
+   - `src/preprocess.py`: Cleans and augments data with features.
 
 4. **Exploratory Data Analysis**  
-   - [`src/eda.py`](src/eda.py):  
-     - Placeholder for basic data description and visualization.
+   - `src/eda.py`: Provides data statistics and visualization.
 
-5. **Main Pipeline**  
-   - [`main.py`](main.py):  
-     - Loads configuration and connects to the database.
-     - Fetches data and applies preprocessing and feature engineering.
-     - Displays filtered results for inspection.
+5. **Modeling**  
+   - `src/model.py`: Embeds text, trains, and evaluates models.
 
-6. **Extensibility**  
-   - Reserved files for model definition (`src/model.py`), training (`src/train.py`), and testing (`test/`).
+6. **Main Pipeline**  
+   - `main.py`: Orchestrates the entire workflow.
 
-## Key Features
-
-- **Database Integration:** Securely connects and queries MySQL for SMS data.
-- **Robust Preprocessing:** Handles text encoding issues and extracts relevant features for spam detection.
-- **Feature Engineering:** Identifies URLs, phone numbers, and custom patterns in messages.
-- **Modular Design:** Easily extendable for model training and evaluation.
+7. **Results**  
+   - Output CSVs are saved in the `result/` folder.
 
 ## Requirements
 
-See [`requirements.txt`](requirements.txt):
-
+See `requirements.txt` for dependencies, including:
 - `mysql-connector-python`
 - `numpy`
 - `pandas`
 - `ftfy`
-- (Other dependencies may be added as the project grows)
+- `emoji`
+- `pyyaml`
+- `lingua-language-detector`
+- `scikit-learn`
+- `sentence-transformers`
+- `einops`
+- `jupyter`
 
 ## Usage
 
@@ -79,7 +117,7 @@ See [`requirements.txt`](requirements.txt):
    pip install -r requirements.txt
    ```
 
-2. **Configure your database and query in `configs/config.yaml`.**
+2. **Configure your database and model parameters in `configs/config.yaml`.**
 
 3. **Run the main pipeline:**
    ```sh
@@ -88,14 +126,21 @@ See [`requirements.txt`](requirements.txt):
 
 ## Customization
 
-- Add your model logic in `src/model.py` and training routines in `src/train.py`.
+- Add or modify model logic in `src/model.py` and training routines in `src/train.py`.
 - Extend EDA in `src/eda.py` for deeper insights.
+- Adjust feature engineering in `src/preprocess.py` as needed.
+
+## Troubleshooting
+
+- **Model Download Errors:** Ensure you have a stable internet connection for downloading Hugging Face models.
+- **File Paths:** Check that all file paths in `config.yaml` and scripts are correct relative to your working directory.
+- **Vector-based Models:** If using models like `jinaai/jina-embeddings-v4`, ensure you specify the `task` parameter when encoding.
 
 ## Copilot Instructions
 
-See [`copilot-instructions.md`](copilot-instructions.md) for coding standards and helper rules.
+See `copilot-instructions.md` for coding standards and helper rules.
 
 ---
 
 **Author:**  
-Khoh Chia Jun
+Khoh Chia
