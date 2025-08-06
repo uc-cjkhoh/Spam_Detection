@@ -7,14 +7,14 @@ decoded_message: <class 'str'>
 
 Numeric Data Statistic: 
        message_length
-count    10000.000000
-mean        56.453700
-std         63.370298
-min          1.000000
+count    31149.000000
+mean        60.710745
+std         68.421891
+min          0.000000
 25%         27.000000
-50%         31.000000
-75%         71.000000
-max        858.000000
+50%         32.000000
+75%         82.000000
+max       1692.000000
 
 Any missing value: 
 message_length     0
@@ -22,8 +22,8 @@ decoded_message    0
 dtype: int64
 
 Any duplicated value: 
-True     5319
-False    4681
+True     17388
+False    13761
 Name: count, dtype: int64
 
 =================================
@@ -38,25 +38,25 @@ language: <class 'numpy.int64'>
 
 Numeric Data Statistic: 
        decoded_message_length  num_spec_percent      language
-count            10000.000000      10000.000000  10000.000000
-mean                54.515600          0.497254      1.910300
-std                 61.645246          0.417174      0.916918
-min                  1.000000          0.000000      0.000000
-25%                 27.000000          0.056483      1.000000
-50%                 31.000000          0.449719      2.000000
-75%                 71.000000          1.000000      3.000000
-max                858.000000          1.000000      3.000000
+count            31149.000000      31135.000000  31149.000000
+mean                58.472664          0.421154      1.753572
+std                 65.163843          0.393668      0.875013
+min                  0.000000          0.000000      0.000000
+25%                 27.000000          0.041667      1.000000
+50%                 31.000000          0.279412      2.000000
+75%                 77.000000          1.000000      3.000000
+max               1674.000000          1.000000      4.000000
 
 Any missing value: 
-decoded_message           0
-decoded_message_length    0
-num_spec_percent          0
-language                  0
+decoded_message            0
+decoded_message_length     0
+num_spec_percent          14
+language                   0
 dtype: int64
 
 Any duplicated value: 
-True     5339
-False    4661
+True     17486
+False    13663
 Name: count, dtype: int64
 
 =================================

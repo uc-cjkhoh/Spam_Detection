@@ -8,7 +8,7 @@ from sklearn.svm import SVC
 from sklearn.decomposition import PCA
 from sklearn.metrics import classification_report 
 
-from . config_loader import cfg
+from loader.config_loader import cfg
 from . decorators import timer, error_log 
   
 @error_log

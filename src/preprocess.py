@@ -4,10 +4,9 @@ import re
 import emoji  
 import sys
 
-from . config_loader import cfg
+from loader.config_loader import cfg
 from . decorators import timer, error_log
-
-from addict import Dict
+ 
 from sklearn.preprocessing import LabelEncoder
 from lingua import Language, LanguageDetectorBuilder 
 

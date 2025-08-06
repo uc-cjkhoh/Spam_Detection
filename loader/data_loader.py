@@ -1,8 +1,7 @@
 import sys
 import mysql.connector
-
-from addict import Dict
 from . config_loader import cfg
+
 
 class Database:
     def __init__(self, source):
@@ -29,4 +28,4 @@ class Database:
             except mysql.connector.Error as e:
                 print(f'Data Loader: Connection failed due to: {e}')
                 sys.exit()
-                
+     

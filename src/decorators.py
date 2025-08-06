@@ -1,22 +1,8 @@
-import functools
-import datetime
-import logging
-import time
-import os 
+import functools 
+import time 
 
-from . config_loader import cfg
-
-today = datetime.datetime.now().strftime('%Y%m%d')
-log_path = f'{cfg.log.path}/spam_detection_{today}.log'
-
-os.makedirs(cfg.log.path, exist_ok=True)
-
-logging.basicConfig(
-    filename=log_path,
-    level=logging.INFO,
-    format='[%(levelname)s] %(asctime)s %(message)s'
-)
-
+from loader.logger_loader import logging 
+  
 def timer(func):
     @functools.wraps(func)
     def wrapper_decorator(*args, **kwargs):

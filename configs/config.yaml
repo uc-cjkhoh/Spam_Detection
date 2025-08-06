@@ -1,24 +1,30 @@
-server:
+server: # server configuration
   source: 'mysql'
   host: "10.168.51.196"
   port: 3306
   user: 'unified'
   password: 'unified'
 
+
 data:
-  query: 
+  query: # the dataset import into python module
     'SELECT 
       `payload_length`,
       `payload` 
     FROM 
       sms_spam_cd.data_tdr_spam_filter 
-    LIMIT 10000'
-  column_name: ['message_length', 'message'] # need to match the number of columns from `query`
-  target_column: 'message'
+    WHERE
+      YEAR(current_datetime) = {}
+      AND MONTH(current_datetime) = {}
+      AND DAY(current_datetime) = {}
+      AND HOUR(current_datetime) = {}'
+  column_name: ['message_length', 'message']
+  target_column: 'message' # specific the main column that listed in `column_name`
   drop_null: false
   drop_duplicates: false
 
-models:
+
+models: # define model to perform spam detection
   text_embedding:
     model_name: 'jinaai/jina-embeddings-v3'
     batch_size: 32
@@ -28,5 +34,18 @@ models:
     model_type: 'text-classification'
     labelling_confidence_threshold: 0.99
   
-log:
+
+active_learning:
+  subdata_metadata_query: # define subdata group, active learning will loop through group by group
+    'SELECT DISTINCT
+      YEAR(current_datetime), 
+      MONTH(current_datetime), 
+      DAY(current_datetime), 
+      HOUR(current_datetime) 
+    FROM 
+      sms_spam_cd.data_tdr_spam_filter'
+  column_name: ['year', 'month', 'day', 'hour']
+  
+
+module_log:
   path: './logs'
