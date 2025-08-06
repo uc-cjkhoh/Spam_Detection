@@ -1,2 +1,4 @@
 venv/
-result/
+cache/
+logs/
+src/__pycache__/

@@ -3,7 +3,6 @@
 Data Types: 
 message_length: <class 'numpy.int64'>
 decoded_message: <class 'str'>
-filtered_message: <class 'str'>
 
 
 Numeric Data Statistic: 
@@ -18,9 +17,8 @@ min          1.000000
 max        858.000000
 
 Any missing value: 
-message_length      0
-decoded_message     0
-filtered_message    0
+message_length     0
+decoded_message    0
 dtype: int64
 
 Any duplicated value: 
@@ -32,57 +30,33 @@ Name: count, dtype: int64
 ==========> Formatted Data <==========
 
 Data Types: 
-message_length: <class 'numpy.int64'>
 decoded_message: <class 'str'>
-filtered_message: <class 'str'>
-filtered_message_length: <class 'numpy.int64'>
-filtered_message_words: <class 'numpy.int64'>
 decoded_message_length: <class 'numpy.int64'>
-number_of_words: <class 'numpy.int64'>
 num_spec_percent: <class 'numpy.float64'>
-has_url_link: <class 'numpy.int64'>
-has_phone_number: <class 'numpy.int64'>
-custom: <class 'numpy.int64'>
-is_chinese: <class 'numpy.float64'>
-is_english: <class 'numpy.float64'>
-is_malay: <class 'numpy.float64'>
-is_tamil: <class 'numpy.float64'>
-is_other: <class 'numpy.float64'>
+language: <class 'numpy.int64'>
 
 
 Numeric Data Statistic: 
-       message_length  filtered_message_length  filtered_message_words  decoded_message_length  number_of_words  num_spec_percent  has_url_link  has_phone_number        custom    is_chinese    is_english      is_malay  is_tamil      is_other
-count    10000.000000              10000.00000            10000.000000            10000.000000     10000.000000       9961.000000  10000.000000      10000.000000  10000.000000  10000.000000  10000.000000  10000.000000   10000.0  10000.000000
-mean        56.453700                 30.99850                6.847600               54.665100         6.873500          0.495099      0.041300          0.301500      0.445200      0.023500      0.361782      0.254518       0.0      0.360200
-std         63.370298                 56.45027               11.560499               62.087279        12.401495          0.419846      0.198993          0.458932      0.497013      0.151493      0.401937      0.346976       0.0      0.480082
-min          1.000000                  0.00000                0.000000                0.000000         0.000000          0.000000      0.000000          0.000000      0.000000      0.000000      0.000000      0.000000       0.0      0.000000
-25%         27.000000                  4.00000                1.000000               27.000000         1.000000          0.048521      0.000000          0.000000      0.000000      0.000000      0.000000      0.000000       0.0      0.000000
-50%         31.000000                  6.00000                1.000000               31.000000         1.000000          0.453125      0.000000          0.000000      0.000000      0.000000      0.092035      0.051126       0.0      0.000000
-75%         71.000000                 42.00000                9.000000               71.000000         8.000000          1.000000      0.000000          1.000000      1.000000      0.000000      0.799025      0.407550       0.0      1.000000
-max        858.000000                817.00000              151.000000              858.000000       165.000000          1.000000      1.000000          1.000000      1.000000      1.000000      1.000000      1.000000       0.0      1.000000
+       decoded_message_length  num_spec_percent      language
+count            10000.000000      10000.000000  10000.000000
+mean                54.515600          0.497254      1.910300
+std                 61.645246          0.417174      0.916918
+min                  1.000000          0.000000      0.000000
+25%                 27.000000          0.056483      1.000000
+50%                 31.000000          0.449719      2.000000
+75%                 71.000000          1.000000      3.000000
+max                858.000000          1.000000      3.000000
 
 Any missing value: 
-message_length              0
-decoded_message             0
-filtered_message            0
-filtered_message_length     0
-filtered_message_words      0
-decoded_message_length      0
-number_of_words             0
-num_spec_percent           39
-has_url_link                0
-has_phone_number            0
-custom                      0
-is_chinese                  0
-is_english                  0
-is_malay                    0
-is_tamil                    0
-is_other                    0
+decoded_message           0
+decoded_message_length    0
+num_spec_percent          0
+language                  0
 dtype: int64
 
 Any duplicated value: 
-False    5501
-True     4499
+True     5339
+False    4661
 Name: count, dtype: int64
 
 =================================

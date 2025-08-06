@@ -1,30 +1,18 @@
-import pandas as pd
-import numpy as np
+import pandas as pd 
 import ftfy
 import re
-import emoji 
-import yaml
-import os
+import emoji  
 import sys
- 
+
+from . config_loader import cfg
 from . decorators import timer, error_log
 
 from addict import Dict
-from lingua import Language, LanguageDetectorBuilder
-from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
+from sklearn.preprocessing import LabelEncoder
+from lingua import Language, LanguageDetectorBuilder 
 
 _languages = [Language.ENGLISH, Language.CHINESE, Language.MALAY, Language.TAMIL]
-_detector = LanguageDetectorBuilder.from_languages(*_languages).build()
-_min_max = MinMaxScaler()
-_robust_scaler = RobustScaler()
-_standard_scaler = StandardScaler()
-
-_config_path = r'./configs/config.yaml'
-if not os.path.exists(_config_path):
-    raise FileNotFoundError(f'Config file is not found in {_config_path}')
-with open(_config_path) as f:
-    cfg = Dict(yaml.load(f, Loader=yaml.FullLoader))
-
+_detector = LanguageDetectorBuilder.from_languages(*_languages).build() 
 
 class custom_filter_regex:
     # string starting with imsi
@@ -34,7 +22,7 @@ class custom_filter_regex:
     _international = '^([0-9]#[0-9]+#(?:\+[0-9]+|[0-9]+))$'
     
     # url link
-    _url_link = '(?:https|http|)?:\/\/(?:www\.)?[^\s\/$.?#].[^\s]*'
+    _url_link = '(?:^((?:https|http|)?:\/\/(www\.)?[^\s\/$.?#].[^\s]*)$|([0-9a-z]+[. :{}]{1}[0-9a-z.: {}]+))'
     
     # request_link
     _request = '(?:^ac\/.+|^reg\-req\?.+)'
@@ -45,10 +33,19 @@ class custom_filter_regex:
     # phone number
     _phone_number = '(?:\+?60|0)1[0-46-9][\s\-]?\d{3}[\s\-]?\d{4}'
     
+    # words contain number
+    _no_char_mix = '(?=[a-zA-Z]*\d)(?=\d*[a-zA-Z])[a-zA-Z0-9]+'
+    
+    # only all chars
+    _only_char = '[a-zA-Z]+'
+    
+    # only number
+    _only_num = '[0-9]+'
+    
 
 @error_log
 @timer
-def text_normalize(data: pd.DataFrame, filter=None):
+def text_normalize(data: pd.DataFrame):
     """
     Normalize message structure
 
@@ -58,38 +55,20 @@ def text_normalize(data: pd.DataFrame, filter=None):
     Returns:
         pd.DataFrame: add two columns (decoded_message, decoded_message_length)
     """
-     
-    def filter_message(message: str):
-        patterns = [
-            ("imsi", custom_filter_regex._imsi),
-            ("ussd", custom_filter_regex._international),
-            ("url", custom_filter_regex._url_link),
-            ("phone", custom_filter_regex._phone_number),
-            (" ", custom_filter_regex._spec_char),
-            (" ", '\d+'),
-            (" ", '\s+')
-        ]
-        
-        temp_message = message
-        for name, regex in patterns:
-            temp_message = re.sub(regex, name, temp_message)
-        
-        return temp_message.strip()
-            
-    
+      
     try:
         data['decoded_message'] = data[cfg.data.target_column].apply(ftfy.fix_text)
         data['decoded_message'] = data['decoded_message'].apply(str.strip)
         data['decoded_message'] = data['decoded_message'].apply(str.lower)
+        data['decoded_message'] = data['decoded_message'].apply(lambda x: re.sub('\s+', ' ', x))
         data['decoded_message'] = data['decoded_message'].apply(lambda x: x.replace('\n', ' '))
-        data['decoded_message'] = data['decoded_message'].apply(lambda x: emoji.replace_emoji(x, ''))
-        data = data.drop(cfg.data.target_column, axis=1)
         
-        if filter:
-            data['filtered_message'] = data['decoded_message'].apply(filter_message)
-            return data
-        else: 
-            return data
+        data['decoded_message'] = data['decoded_message'].apply(lambda x: emoji.replace_emoji(x, '<EMO>'))
+        # data['decoded_message'] = data['decoded_message'].apply(lambda x: re.sub(custom_filter_regex._spec_char, '.', x))
+        # data['decoded_message'] = data['decoded_message'].apply(lambda x: re.sub(custom_filter_regex._no_char_mix, '', x))
+        data = data.drop(cfg.data.target_column, axis=1)
+         
+        return data
     except KeyError:
         print('Invalid column, check if column_name and payload_column is the same in ./configs/config.yaml')
         sys.exit()
@@ -111,15 +90,7 @@ def feature_engineering(data: pd.DataFrame):
     # how many number in message
     def find_numeric_length(message: str):
         return len(str(''.join(re.findall('\d+', message))))
-    
-    # find number of words
-    def find_number_of_words(message: str):
-        message = message.strip()
-        if not message:
-            return 0 
-        
-        return len(message.split(' '))
-    
+     
     # how many special character in message
     def find_special_char_len(message: str):
         return len(str(''.join(re.findall(custom_filter_regex._spec_char, message))))
@@ -133,75 +104,42 @@ def feature_engineering(data: pd.DataFrame):
     def find_url(message: str):
         link = re.findall(custom_filter_regex._url_link, message)
         return 1 if link else 0
-    
-    # custom filtering
-    def custom_filter(message: str):
-        filter_1 = bool(re.findall(custom_filter_regex._imsi, message))
-        filter_2 = bool(re.findall(custom_filter_regex._international, message)) 
-        filter_3 = bool(re.findall(custom_filter_regex._request, message))
-        return filter_1 or filter_2 or filter_3
-    
+     
+    # find word to character ratio
+    def find_word_char_ratio(message: str):
+        return 
+     
     # determine if message contain certain language
-    def message_contain_language(messages: pd.Series):
-        temp = []
-        for message in messages:
-            confidence = _detector.compute_language_confidence_values(message)
-            
-            lgs = [cfd.language.name for cfd in confidence if cfd.value != 0]
-            cfd_value = [cfd.value for cfd in confidence if cfd.value != 0]
-            
-            is_chinese = cfd_value[lgs.index('CHINESE')] if 'CHINESE' in lgs else 0
-            is_english = cfd_value[lgs.index('ENGLISH')] if 'ENGLISH' in lgs else 0
-            is_malay = cfd_value[lgs.index('MALAY')] if 'MALAY' in lgs else 0
-            is_tamil = cfd_value[lgs.index('TAMIL')] if 'TAMIL' in lgs else 0
-            is_other = 1 if not lgs else 0
-            
-            temp.append([is_chinese, is_english, is_malay, is_tamil, is_other])
-            
-        return np.array(temp)
+    def message_contain_language(message: pd.Series):
+        confidence = _detector.compute_language_confidence_values(message)
         
-    try:
-        if 'filtered_message' in data.columns:
-            data['filtered_message_length'] = data['filtered_message'].apply(len)
-            data['filtered_message_words'] = data['filtered_message'].apply(find_number_of_words) 
+        lgs = [cfd.language.name for cfd in confidence if cfd.value != 0]
+        cfd_value = [cfd.value for cfd in confidence if cfd.value != 0]
         
+        most_possible_lg = lgs[cfd_value.index(max(cfd_value))] if cfd_value != [] else 'OTHERS'
+        
+        return most_possible_lg
+        
+    try: 
         data['decoded_message_length'] = data['decoded_message'].apply(len)
-        
-        data['number_of_words'] = data['decoded_message'].apply(find_number_of_words)
         
         data['num_spec_percent'] = \
             (data['decoded_message'].apply(find_numeric_length) + \
             data['decoded_message'].apply(find_special_char_len)) / data['decoded_message_length']
         
-        data['has_url_link'] = data['decoded_message'].apply(find_url) 
+        # data['has_url_link'] = data['decoded_message'].apply(find_url) 
         
-        data['has_phone_number'] = data['decoded_message'].apply(find_phone_number)
-         
-        data['custom'] = data['decoded_message'].apply(custom_filter).astype(int)
-         
-        data[['is_chinese', 'is_english', 'is_malay', 'is_tamil', 'is_other']] = \
-            message_contain_language(data['decoded_message'])
+        # data['has_phone_number'] = data['decoded_message'].apply(find_phone_number)
+          
+        # data['word_to_char_ratio'] = data['decoded_message'].apply(find_word_char_ratio)
+          
+        data['language'] = data['decoded_message'].apply(message_contain_language)
         
-        return data 
+        label = LabelEncoder()
+        data['language'] = label.fit_transform(data['language'])
+        
+        data = data.drop([cfg.data.target_column + '_length'], axis=1)
+        return data, label.classes_
     except KeyError:
         print(f'Invalid column, check if column_name and payload_column is the same in ./configs/config.yaml')
         sys.exit()
-
-
-@error_log
-@timer
-def data_normalization(data: pd.DataFrame, scaler=None):
-    if scaler == 'min_max':
-        return _min_max.fit_transform(data)
-    elif scaler == 'robust':
-        return _robust_scaler.fit_transform(data)
-    elif scaler == 'standard':
-        return _standard_scaler.fit_transform(data)
-    elif scaler == None:
-        return _min_max.fit_transform(data), _robust_scaler.fit_transform(data), _standard_scaler.fit_transform(data)
-    else:
-        raise ValueError(
-            f'(Preprocessing.py, ValueError) Unknown scaler: `{scaler}` given. \
-            Should be `min_max`, `robust`, `standard` or None return all scalers.'
-        )
-        

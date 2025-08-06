@@ -1,32 +1,12 @@
-import os
 import sys
-import yaml
 import mysql.connector
 
 from addict import Dict
+from . config_loader import cfg
 
 class Database:
-    def __init__(self, source, config_path='./configs/config.yaml'):
-        self.source = source
-        self.config_path = config_path
-        self.cfg = self.load_config()    
-    
-    def load_config(self):
-        """
-        Load Configuration File
-
-        Raises:
-            FileNotFoundError: If configuration file's path is not found
-
-        Returns:
-            dict: configuration in config.yaml 
-        """
-        
-        if not os.path.exists(self.config_path):
-            raise FileNotFoundError(f'Config file is not found in {self.config_path}')
-        else:
-            with open(r'./configs/config.yaml') as f:
-                return Dict(yaml.load(f, Loader=yaml.FullLoader))
+    def __init__(self, source):
+        self.source = source 
     
     def connect_db(self):
         """
@@ -41,10 +21,10 @@ class Database:
         else:
             try:
                 return mysql.connector.connect(
-                    host=self.cfg.server.host,
-                    port=self.cfg.server.port,
-                    user=self.cfg.server.user,
-                    password=self.cfg.server.password
+                    host=cfg.server.host,
+                    port=cfg.server.port,
+                    user=cfg.server.user,
+                    password=cfg.server.password
                 )
             except mysql.connector.Error as e:
                 print(f'Data Loader: Connection failed due to: {e}')

@@ -1,29 +1,16 @@
-import pandas as pd
-import xgboost
-import yaml 
-import os
+import pandas as pd 
 
-from tqdm import tqdm
-from addict import Dict
-from sklearn.svm import SVC
-from sklearn.linear_model import LogisticRegression
-from sklearn.cluster import HDBSCAN, SpectralClustering
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.decomposition import PCA
-from sklearn.metrics import classification_report
-from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+from tqdm import tqdm 
+from sklearn.preprocessing import LabelEncoder
 from sentence_transformers import SentenceTransformer
 from transformers import pipeline, AutoModelForSequenceClassification
+from sklearn.svm import SVC 
+from sklearn.decomposition import PCA
+from sklearn.metrics import classification_report 
 
-from . decorators import timer, error_log
-
-_config_path = r'./configs/config.yaml'
-if not os.path.exists(_config_path):
-    raise FileNotFoundError(f'Config file is not found in {_config_path}')
-with open(_config_path) as f:
-    cfg = Dict(yaml.load(f, Loader=yaml.FullLoader))
-
-
+from . config_loader import cfg
+from . decorators import timer, error_log 
+  
 @error_log
 @timer
 def text_embedding(messages: pd.Series):
@@ -38,7 +25,7 @@ def text_embedding(messages: pd.Series):
 
 @error_log
 @timer
-def train_model(data: pd.Series) -> pd.DataFrame: 
+def train_model(data: pd.Series, column_name='Message') -> pd.DataFrame: 
     def text_pipe(texts: pd.DataFrame, batch_size=32):
         results = []
         for i in tqdm(range(0, len(texts), batch_size)):
@@ -52,11 +39,11 @@ def train_model(data: pd.Series) -> pd.DataFrame:
     pipe = pipeline(cfg.models.spam_detection.model_type, model=cfg.models.spam_detection.model_name)
     
     prediction = text_pipe(data.to_list()) 
-    label = [p['label'] for p in prediction]
+    label = LabelEncoder()
+    label = label.fit_transform([p['label'] for p in prediction])
     score = [p['score'] for p in prediction]
     
     return pd.DataFrame({
-        'Message': data,
-        'Label': label,
-        'Score': score
+        column_name + '_label': label,
+        column_name + '_score': score
     })
