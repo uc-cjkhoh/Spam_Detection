@@ -1,75 +1,65 @@
+# === Standard Imports ===
+import os
+import sys
+import pandas as pd
+from tqdm import tqdm
 
-import loader.data_loader
-import src.preprocess
-import src.model
-import src.eda
-import src.util
-import src.active_training
+# === Project Imports ===
+from src.preprocess import text_normalize, feature_engineering
+from src.model import train_model
+from src.util import update_unfinish_metadata, is_folder_empty, setup_directory_and_file, initial_first_label_set
+from src.active_training import start_active_training
+from src.decorators import timer, error_log
+# from src.eda import basic_eda
 
+from loader.data_loader import Database
 from loader.config_loader import cfg
 from loader.logger_loader import logging
- 
-import pandas as pd
-from datetime import datetime 
-
-
-if __name__ == '__main__':
-    ### Connect to database
-    database = loader.data_loader.Database('mysql').connect_db()
-     
-    ### Get a cursor and execute query in config file
-    cur = database.cursor()
+  
+  
+@error_log
+@timer
+def main():
+    setup_directory_and_file()
     
-    ### Get subdata metadata for active learning iteration
-    cur.execute(cfg.active_learning.subdata_metadata_query)
-    subdata_metadata = pd.DataFrame(cur.fetchall(), columns=cfg.active_learning.column_name)
-    subdata_metadata = src.util.check_learning_process(subdata_metadata)
-        
-    ### Get data
-    for profile in subdata_metadata.to_numpy():
-        query = cfg.data.query.format(*profile)
-        logging.info('Learning subdata of year: {}, month: {}, day: {}, hour: {}'.format(*profile))
+    database = Database('mysql')
+    connector = database.connect_db()
+    cur = connector.cursor()
+    
+    subdata_metadata = database.get_metadata(cur)
+    subdata_log_dt = ('{}/' * len(cfg.active_learning.column_name)).strip('/')
+    
+    # Starting core process 
+    for metadata in tqdm(subdata_metadata.to_numpy()):
+        query = cfg.data.query.format(*metadata)
+        logging.info(f'Learning subdata of datetime: {subdata_log_dt.format(*metadata)}')
         
         cur.execute(query)
-        data = pd.DataFrame(cur.fetchall(), columns=cfg.data.column_name)
+        unlabel_data = pd.DataFrame(cur.fetchall(), columns=cfg.data.column_name)
         
-        ### 1. Preprocess data 
         # Try the best to normalize messages
-        data = src.preprocess.text_normalize(data.copy()) 
+        unlabel_data = text_normalize(unlabel_data.copy()) 
         
-        ### 2. EDA
-        # Check data statistic
-        # src.eda.basic_eda(data.copy(), title='Raw Data')
+        # Check data statistic 
         if cfg.data.drop_null:
-            data = data.dropna()
+            unlabel_data = unlabel_data.dropna()
         if cfg.data.drop_duplicates:
-            data = data.drop_duplicates()
+            unlabel_data = unlabel_data.drop_duplicates()
+          
+        unlabel_data = unlabel_data.select_dtypes(include=['object'])
         
-        ### 3. Feature Engineering
-        data, _lgs = src.preprocess.feature_engineering(data.copy())
+        # If haven't initialize the first label data 
+        if is_folder_empty(cfg.active_learning.label_data_folder):
+            initial_first_label_set(unlabel_data, subdata_metadata, metadata)
+            print('\nSuccessfully initiated first set of label data.\nDouble check the label and run module again ...')
+            sys.exit()
+    
+        label_data = pd.read_excel(f'{cfg.active_learning.label_data_folder.strip("/")}/{cfg.active_learning.label_data_filename}')
         
-        # check the statistic of new dataset
-        # src.eda.basic_eda(data.copy(), title='Formatted Data', access_mode='a') 
+        # Start active learning
+        confidence_threshold = cfg.models.spam_detection.labelling_confidence_threshold
+        updated_label_data, updated_unlabel_data = start_active_training(label_data, unlabel_data, threshold=confidence_threshold)
         
-        # 4. Select only string data 
-        string_data = data.select_dtypes(include=['object'])
-        
-        ### Prepare label and unlabel data 
-        # If haven't initialize the first label data
-        labelled_data_folder = './labelled_data'
-        if src.util.is_folder_empty(labelled_data_folder):
-            for col in string_data.columns:
-                result = src.model.train_model(string_data[col], column_name=col)
-                data = pd.concat([data, result], axis=1)
-                
-            # save result
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M')
-            filename = f'./labelled_data/{timestamp}.xlsx'
-            
-            with pd.ExcelWriter(filename) as writer:
-                for group_name, group_df in data.groupby('language'):
-                    group_df.to_excel(writer, sheet_name=str(_lgs[group_name]), index=False)
-                
-        ### Start active learning
-        # confidence_threshold = cfg.models.spam_detection.labelling_confidence_threshold
-        # label_data = data.groupby(by='language')
+
+if __name__ == '__main__':
+    main()

@@ -9,16 +9,17 @@ server: # server configuration
 data:
   query: # the dataset import into python module
     'SELECT 
-      `payload_length`,
-      `payload` 
+      `payload`, 
+      `payload_length`
     FROM 
       sms_spam_cd.data_tdr_spam_filter 
     WHERE
       YEAR(current_datetime) = {}
       AND MONTH(current_datetime) = {}
       AND DAY(current_datetime) = {}
-      AND HOUR(current_datetime) = {}'
-  column_name: ['message_length', 'message']
+      AND HOUR(current_datetime) = {}
+      AND MINUTE(current_datetime) = {}'
+  column_name: ['message', 'message_length']
   target_column: 'message' # specific the main column that listed in `column_name`
   drop_null: false
   drop_duplicates: false
@@ -30,9 +31,9 @@ models: # define model to perform spam detection
     batch_size: 32
   
   spam_detection:
-    model_name: 'mariagrandury/distilbert-base-uncased-finetuned-sms-spam-detection'
-    model_type: 'text-classification'
+    model_name: 'mariagrandury/distilbert-base-uncased-finetuned-sms-spam-detection' 
     labelling_confidence_threshold: 0.99
+    batch_size: 32
   
 
 active_learning:
@@ -41,11 +42,23 @@ active_learning:
       YEAR(current_datetime), 
       MONTH(current_datetime), 
       DAY(current_datetime), 
-      HOUR(current_datetime) 
+      HOUR(current_datetime),
+      MINUTE(current_datetime)
     FROM 
       sms_spam_cd.data_tdr_spam_filter'
-  column_name: ['year', 'month', 'day', 'hour']
+  column_name: ['year', 'month', 'day', 'hour', 'minute']
+  label_data_folder: 'data/label'
+  label_data_filename: 'label_data.xlsx'
+  unlabel_data_folder: 'data/unlabel'
+  unlabel_data_filename: 'unlabel_data.xlsx'
   
 
 module_log:
-  path: './logs'
+  general_log_path: 
+    folder: 'logs/general'
+  process_log_path: 
+    folder: 'logs/process'
+    files:
+      label_record_file: 'logs/process/label_metadata.xlsx'
+      unlabel_record_file: 'logs/process/unlabel_metadata.xlsx'
+    

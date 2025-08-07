@@ -4,6 +4,16 @@ import time
 from loader.logger_loader import logging 
   
 def timer(func):
+    """
+    Record function execution duration
+
+    Args:
+        func (object): any python function
+
+    Returns:
+        object: return function result and log 
+    """
+    
     @functools.wraps(func)
     def wrapper_decorator(*args, **kwargs):
         start_time = time.perf_counter()
@@ -21,6 +31,16 @@ def timer(func):
 
 
 def error_log(func):
+    """
+    Record any error happened in function
+
+    Args:
+        func (object): any python function
+
+    Returns:
+        object: return function result and error log
+    """
+    
     @functools.wraps(func)
     def wrapper_decorator(*args, **kwargs):
         try:

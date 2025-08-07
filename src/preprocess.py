@@ -4,14 +4,15 @@ import re
 import emoji  
 import sys
 
-from loader.config_loader import cfg
-from . decorators import timer, error_log
- 
 from sklearn.preprocessing import LabelEncoder
 from lingua import Language, LanguageDetectorBuilder 
 
+from loader.config_loader import cfg
+from . decorators import timer, error_log
+ 
 _languages = [Language.ENGLISH, Language.CHINESE, Language.MALAY, Language.TAMIL]
 _detector = LanguageDetectorBuilder.from_languages(*_languages).build() 
+
 
 class custom_filter_regex:
     # string starting with imsi
@@ -56,17 +57,16 @@ def text_normalize(data: pd.DataFrame):
     """
       
     try:
-        data['decoded_message'] = data[cfg.data.target_column].apply(ftfy.fix_text)
-        data['decoded_message'] = data['decoded_message'].apply(str.strip)
-        data['decoded_message'] = data['decoded_message'].apply(str.lower)
-        data['decoded_message'] = data['decoded_message'].apply(lambda x: re.sub('\s+', ' ', x))
-        data['decoded_message'] = data['decoded_message'].apply(lambda x: x.replace('\n', ' '))
+        data[cfg.data.target_column] = data[cfg.data.target_column].apply(ftfy.fix_text)
+        data[cfg.data.target_column] = data[cfg.data.target_column].apply(str.strip)
+        data[cfg.data.target_column] = data[cfg.data.target_column].apply(str.lower)
+        data[cfg.data.target_column] = data[cfg.data.target_column].apply(lambda x: re.sub('\s+', ' ', x))
+        data[cfg.data.target_column] = data[cfg.data.target_column].apply(lambda x: x.replace('\n', ' '))
         
-        data['decoded_message'] = data['decoded_message'].apply(lambda x: emoji.replace_emoji(x, '<EMO>'))
-        # data['decoded_message'] = data['decoded_message'].apply(lambda x: re.sub(custom_filter_regex._spec_char, '.', x))
-        # data['decoded_message'] = data['decoded_message'].apply(lambda x: re.sub(custom_filter_regex._no_char_mix, '', x))
-        data = data.drop(cfg.data.target_column, axis=1)
-         
+        data[cfg.data.target_column] = data[cfg.data.target_column].apply(lambda x: emoji.replace_emoji(x, '<EMO>'))
+        # data[cfg.data.target_column] = data[cfg.data.target_column].apply(lambda x: re.sub(custom_filter_regex._spec_char, '.', x))
+        # data[cfg.data.target_column] = data[cfg.data.target_column].apply(lambda x: re.sub(custom_filter_regex._no_char_mix, '', x))
+    
         return data
     except KeyError:
         print('Invalid column, check if column_name and payload_column is the same in ./configs/config.yaml')
@@ -120,25 +120,24 @@ def feature_engineering(data: pd.DataFrame):
         return most_possible_lg
         
     try: 
-        data['decoded_message_length'] = data['decoded_message'].apply(len)
+        data[cfg.data.target_column + '_length'] = data[cfg.data.target_column].apply(len)
         
         data['num_spec_percent'] = \
-            (data['decoded_message'].apply(find_numeric_length) + \
-            data['decoded_message'].apply(find_special_char_len)) / data['decoded_message_length']
+            (data[cfg.data.target_column].apply(find_numeric_length) + \
+            data[cfg.data.target_column].apply(find_special_char_len)) / data['decoded_message_length']
         
-        # data['has_url_link'] = data['decoded_message'].apply(find_url) 
+        # data['has_url_link'] = data[cfg.data.target_column].apply(find_url) 
         
-        # data['has_phone_number'] = data['decoded_message'].apply(find_phone_number)
+        # data['has_phone_number'] = data[cfg.data.target_column].apply(find_phone_number)
           
-        # data['word_to_char_ratio'] = data['decoded_message'].apply(find_word_char_ratio)
+        # data['word_to_char_ratio'] = data[cfg.data.target_column].apply(find_word_char_ratio)
           
-        data['language'] = data['decoded_message'].apply(message_contain_language)
+        data['language'] = data[cfg.data.target_column].apply(message_contain_language)
         
         label = LabelEncoder()
         data['language'] = label.fit_transform(data['language'])
-        
-        data = data.drop([cfg.data.target_column + '_length'], axis=1)
-        return data, label.classes_
+         
+        return data
     except KeyError:
         print(f'Invalid column, check if column_name and payload_column is the same in ./configs/config.yaml')
         sys.exit()

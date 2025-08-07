@@ -25,25 +25,23 @@ def text_embedding(messages: pd.Series):
 
 @error_log
 @timer
-def train_model(data: pd.Series, column_name='Message') -> pd.DataFrame: 
-    def text_pipe(texts: pd.DataFrame, batch_size=32):
+def train_model(data: pd.Series) -> pd.DataFrame: 
+    def text_pipe(texts: pd.DataFrame, batch_size=16):
         results = []
         for i in tqdm(range(0, len(texts), batch_size)):
             batch = texts[i:i+batch_size]
             results.extend(pipe(batch))
         return results
+     
+    pipe = pipeline('text-classification', model=cfg.models.spam_detection.model_name)
     
-    if cfg.models.spam_detection.model_type != 'text-classification':
-        raise ValueError(f'Invalid model type: `{cfg.models.spam_detection.model_type}`, check your config.yaml')
-    
-    pipe = pipeline(cfg.models.spam_detection.model_type, model=cfg.models.spam_detection.model_name)
-    
-    prediction = text_pipe(data.to_list()) 
+    prediction = text_pipe(data.to_list(), cfg.models.spam_detection.batch_size) 
     label = LabelEncoder()
     label = label.fit_transform([p['label'] for p in prediction])
     score = [p['score'] for p in prediction]
     
     return pd.DataFrame({
-        column_name + '_label': label,
-        column_name + '_score': score
+        cfg.data.target_column: data,
+        cfg.data.target_column + '_label': label,
+        cfg.data.target_column + '_score': score
     })

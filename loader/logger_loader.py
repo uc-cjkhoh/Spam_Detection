@@ -4,11 +4,11 @@ import datetime
 
 from . config_loader import cfg
 
-today = datetime.datetime.now().strftime('%Y%m%d')
-log_path = f'{cfg.module_log.path}/spam_detection_{today}.log'
+os.makedirs(cfg.module_log.general_log_path.folder, exist_ok=True)
+os.makedirs(cfg.module_log.process_log_path.folder, exist_ok=True)
 
-# make sure the log folder exists
-os.makedirs(cfg.module_log.path, exist_ok=True)
+today = datetime.datetime.now().strftime('%Y%m%d')
+log_path = f'{cfg.module_log.general_log_path.folder}/spam_detection_{today}.log'
 
 logging.basicConfig(
     filename=log_path,
