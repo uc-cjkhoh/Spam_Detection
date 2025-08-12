@@ -1,15 +1,16 @@
 # === Standard Imports ===
-import os
-import sys
 import pandas as pd
+import numpy as np
+import sys
+import os
 from tqdm import tqdm
 
 # === Project Imports ===
-from src.preprocess import text_normalize, feature_engineering
-from src.model import train_model
-from src.util import update_unfinish_metadata, is_folder_empty, setup_directory_and_file, initial_first_label_set
+from src.preprocess import text_normalize
+from src.util import setup_directory_and_file, update_metadata
 from src.active_training import start_active_training
 from src.decorators import timer, error_log
+from src.model import initial_labeling
 # from src.eda import basic_eda
 
 from loader.data_loader import Database
@@ -26,40 +27,51 @@ def main():
     connector = database.connect_db()
     cur = connector.cursor()
     
-    subdata_metadata = database.get_metadata(cur)
-    subdata_log_dt = ('{}/' * len(cfg.active_learning.column_name)).strip('/')
+    all_metadata = database.get_metadata(cur)
+    update_metadata(all_metadata)
     
-    # Starting core process 
-    for metadata in tqdm(subdata_metadata.to_numpy()):
+    subdata_log_dt = ('{}/' * len(cfg.active_learning.column_name)).strip('/')
+        
+    for metadata in tqdm(all_metadata.to_numpy()):
+        finished_metadatas = pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)
+        if np.any(np.all(finished_metadatas.to_numpy() == metadata, axis=1)):
+            logging.info(f'Skipping labelled metadata {subdata_log_dt.format(*metadata)}')
+            continue
+        
         query = cfg.data.query.format(*metadata)
-        logging.info(f'Learning subdata of datetime: {subdata_log_dt.format(*metadata)}')
+        logging.info(f'Loading subdata from: {subdata_log_dt.format(*metadata)}')
         
         cur.execute(query)
         unlabel_data = pd.DataFrame(cur.fetchall(), columns=cfg.data.column_name)
-        
-        # Try the best to normalize messages
         unlabel_data = text_normalize(unlabel_data.copy()) 
-        
-        # Check data statistic 
-        if cfg.data.drop_null:
-            unlabel_data = unlabel_data.dropna()
-        if cfg.data.drop_duplicates:
-            unlabel_data = unlabel_data.drop_duplicates()
-          
-        unlabel_data = unlabel_data.select_dtypes(include=['object'])
-        
-        # If haven't initialize the first label data 
-        if is_folder_empty(cfg.active_learning.label_data_folder):
-            initial_first_label_set(unlabel_data, subdata_metadata, metadata)
-            print('\nSuccessfully initiated first set of label data.\nDouble check the label and run module again ...')
-            sys.exit()
+         
+        if len(pd.read_excel(cfg.active_learning.label_data_file)) == 0:
+            label_data = initial_labeling(unlabel_data[cfg.data.target_column])  
+            label_data.to_excel(
+                f'{cfg.active_learning.label_data_file}', 
+                index=False
+            )
+            
+            update_metadata()
+            logging.info('\nSuccessfully initiated first set of label data.\nDouble check each label and run module again ...')
+        else:    
+            label_data = pd.read_excel(cfg.active_learning.label_data_file)  
+            saved_unlabel_data = pd.read_excel(cfg.active_learning.unlabel_data_file)
+            unlabel_data = pd.concat([unlabel_data, saved_unlabel_data])
+            
+            start_active_training(
+                label_data, 
+                unlabel_data, 
+                threshold=cfg.models.spam_detection.labelling_confidence_threshold
+            )
     
-        label_data = pd.read_excel(f'{cfg.active_learning.label_data_folder.strip("/")}/{cfg.active_learning.label_data_filename}')
-        
-        # Start active learning
-        confidence_threshold = cfg.models.spam_detection.labelling_confidence_threshold
-        updated_label_data, updated_unlabel_data = start_active_training(label_data, unlabel_data, threshold=confidence_threshold)
+            update_metadata()
         
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt as e:
+        logging.error(e, exc_info=True)
+    finally:
+        logging.info('===== End of Execution =====')

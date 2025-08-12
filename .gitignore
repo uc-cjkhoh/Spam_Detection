@@ -1,4 +1,5 @@
 venv/
-cache/
+models/
 logs/
 src/__pycache__/
+loader/__pycache__/

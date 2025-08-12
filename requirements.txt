@@ -1,4 +1,4 @@
-mysql-connector_python
+mysql-connector-python
 numpy
 pandas
 ftfy
@@ -7,6 +7,11 @@ emoji
 pyyaml
 lingua-language-detector
 scikit-learn
-sentence_transformers
+sentence-transformers
 einops
 openpyxl
+tqdm
+transformers
+joblib
+fastapi[standard]
+uvicorn

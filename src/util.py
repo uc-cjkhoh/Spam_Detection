@@ -1,11 +1,10 @@
 import os
 import pandas as pd
+import numpy as np
 
-from pathlib import Path
-
-from . decorators import timer, error_log
-from . model import train_model
+from .decorators import timer, error_log
 from loader.config_loader import cfg 
+
 
 @error_log
 @timer
@@ -14,38 +13,33 @@ def setup_directory_and_file():
     Create necessary directorlies and files
     """
     
-    # create directory
+    # create directories
     os.makedirs(cfg.active_learning.label_data_folder, exist_ok=True)
     os.makedirs(cfg.active_learning.unlabel_data_folder, exist_ok=True) 
+    os.makedirs(cfg.models.save_model_to.folder, exist_ok=True) 
     
-    # create file
-    Path(f'{cfg.module_log.process_log_path.files.label_record_file}').touch(exist_ok=True)
-    Path(f'{cfg.module_log.process_log_path.files.unlabel_record_file}').touch(exist_ok=True)
-    
+    # create files
+    if not os.path.isfile(cfg.module_log.process_log_path.files.label_record_file):
+        pd.DataFrame(columns=cfg.active_learning.column_name).to_excel(
+            cfg.module_log.process_log_path.files.label_record_file, index=False
+        )
+    if not os.path.isfile(cfg.module_log.process_log_path.files.unlabel_record_file):
+        pd.DataFrame(columns=cfg.active_learning.column_name).to_excel(
+            cfg.module_log.process_log_path.files.unlabel_record_file, index=False
+        )
+    if not os.path.isfile(cfg.active_learning.label_data_file):
+        pd.DataFrame(columns=[cfg.data.target_column, cfg.data.target_column + '_label', cfg.data.target_column + '_score']).to_excel(
+            cfg.active_learning.label_data_file, index=False
+        )
+    if not os.path.isfile(cfg.active_learning.unlabel_data_file):
+        pd.DataFrame(columns=[cfg.data.target_column, cfg.data.target_column + '_label', cfg.data.target_column + '_score']).to_excel(
+            cfg.active_learning.unlabel_data_file, index=False
+        )
         
-@error_log 
-@timer
-def is_folder_empty(folderpath: str) -> bool:
-    """
-    Check if folder is empty
-
-    Args:
-        folderpath (str): target folder's path
-
-    Returns:
-        bool: True if folder is empty else False
-    """
-    
-    if not os.path.isdir(folderpath):
-        print(f'Folder {folderpath} not exists, creating folder ...')
-        return False
-    
-    return not os.listdir(folderpath)
-
 
 @error_log
 @timer
-def update_unfinish_metadata(metadata: pd.DataFrame):
+def update_metadata(all_metadata: pd.DataFrame=None):
     """
     Update training process by checking if a subdata has been labelled.
 
@@ -56,36 +50,26 @@ def update_unfinish_metadata(metadata: pd.DataFrame):
         pd.DataFrame: pandas dataframe
     """
     
-    finished_subgroup_file = f'{cfg.module_log.process_log_path.files.label_record_file}'
+    finished_metadata = cfg.module_log.process_log_path.files.label_record_file
+    unfinished_metadata = cfg.module_log.process_log_path.files.unlabel_record_file
     
-    if os.path.getsize(finished_subgroup_file) == 0:
-        metadata.to_excel(f'{cfg.module_log.process_log_path.files.unlabel_record_file}', index=False)
+    if all_metadata is not None:
+        all_metadata.to_excel(unfinished_metadata, index=False)
     else:
-        finished_subgroup = pd.read_excel(finished_subgroup_file)
+        finished = pd.read_excel(finished_metadata)
+        unfinished = pd.read_excel(unfinished_metadata)
         
-        metadata = metadata.merge(finished_subgroup, how='left', indicator=True)
-        metadata = metadata[metadata._merge == 'left_only']
-        metadata = metadata.drop('_merge', axis=1)
-        metadata.to_excel(f'{cfg.module_log.process_log_path.files.unlabel_record_file}', index=False)
-      
-      
+        updated_finished = pd.concat([finished, unfinished.iloc[0].to_frame().T])
+        updated_unfinished = unfinished.drop(index=0)
+        
+        updated_finished.to_excel(finished_metadata, index=False)
+        updated_unfinished.to_excel(unfinished_metadata, index=False)
+        
+    
+    
 @error_log
 @timer
-def initial_first_label_set(data: pd.DataFrame, subdata_metadata: pd.DataFrame, metadata: list):
-    label_data = train_model(data[cfg.data.target_column]) 
-    label_data.to_excel(
-        f'{cfg.active_learning.label_data_folder.strip("/")}/{cfg.active_learning.label_data_filename}', 
-        index=False
-    )
-    
-    current_metadata = pd.DataFrame([metadata], columns=cfg.active_learning.column_name)
-    finished_metadata_file = f'{cfg.module_log.process_log_path.files.label_record_file}'
-    
-    if os.path.getsize(finished_metadata_file) == 0:
-        current_metadata.to_excel(finished_metadata_file, index=False)
-    else:
-        with pd.ExcelWriter(finished_metadata_file, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-            current_metadata.to_excel(writer, sheet_name='Sheet1', index=False, header=False, startrow=writer.sheets['Sheet1'].max_row)
-
-    update_unfinish_metadata(subdata_metadata.drop(index=0))
-    
+def has_availabel_model(model_class: str):
+    models_folderpath = cfg.models.save_model_to.folder
+    return model_class in [x.split('-') for x in os.listdir(models_folderpath)][0]
+        

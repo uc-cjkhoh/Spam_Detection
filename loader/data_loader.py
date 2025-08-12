@@ -2,14 +2,15 @@ import sys
 import pandas as pd
 import mysql.connector
 
-from src.util import update_unfinish_metadata
+from src.util import update_metadata
 from src.decorators import timer, error_log
-from . config_loader import cfg
+from .config_loader import cfg
 
 
 class Database:
     def __init__(self, source):
         self.source = source 
+    
     
     @error_log 
     @timer
@@ -35,11 +36,12 @@ class Database:
                 print(f'Data Loader: Connection failed due to: {e}')
                 sys.exit()
     
+    
     @error_log
     @timer
     def get_metadata(self, cursor):
         """
-        Return latest subdata grouping metadata
+        Return latest unlabel metadata(s)
 
         Args:
             cursor (mysql.connector): connector to execute query
@@ -49,6 +51,13 @@ class Database:
         """
         
         cursor.execute(cfg.active_learning.subdata_metadata_query)
-        metadata = pd.DataFrame(cursor.fetchall(), columns=cfg.active_learning.column_name)
-        update_unfinish_metadata(metadata) 
+        metadata = pd.DataFrame(cursor.fetchall(), columns=cfg.active_learning.column_name) 
+        
+        finished_metadata = pd.read_excel(f'{cfg.module_log.process_log_path.files.label_record_file}')
+        
+        if not finished_metadata.empty:
+            metadata = metadata.merge(finished_metadata, how='left', indicator=True)
+            metadata = metadata[metadata._merge == 'left_only']
+            metadata = metadata.drop('_merge', axis=1)
+        
         return metadata

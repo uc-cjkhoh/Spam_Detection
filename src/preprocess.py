@@ -8,7 +8,7 @@ from sklearn.preprocessing import LabelEncoder
 from lingua import Language, LanguageDetectorBuilder 
 
 from loader.config_loader import cfg
-from . decorators import timer, error_log
+from .decorators import timer, error_log
  
 _languages = [Language.ENGLISH, Language.CHINESE, Language.MALAY, Language.TAMIL]
 _detector = LanguageDetectorBuilder.from_languages(*_languages).build() 
@@ -59,11 +59,16 @@ def text_normalize(data: pd.DataFrame):
     try:
         data[cfg.data.target_column] = data[cfg.data.target_column].apply(ftfy.fix_text)
         data[cfg.data.target_column] = data[cfg.data.target_column].apply(str.strip)
-        data[cfg.data.target_column] = data[cfg.data.target_column].apply(str.lower)
+        # data[cfg.data.target_column] = data[cfg.data.target_column].apply(str.lower)
         data[cfg.data.target_column] = data[cfg.data.target_column].apply(lambda x: re.sub('\s+', ' ', x))
         data[cfg.data.target_column] = data[cfg.data.target_column].apply(lambda x: x.replace('\n', ' '))
-        
         data[cfg.data.target_column] = data[cfg.data.target_column].apply(lambda x: emoji.replace_emoji(x, '<EMO>'))
+         
+        if cfg.data.drop_null:
+            data = data.dropna()
+        if cfg.data.drop_duplicates:
+            data = data.drop_duplicates()
+            
         # data[cfg.data.target_column] = data[cfg.data.target_column].apply(lambda x: re.sub(custom_filter_regex._spec_char, '.', x))
         # data[cfg.data.target_column] = data[cfg.data.target_column].apply(lambda x: re.sub(custom_filter_regex._no_char_mix, '', x))
     
