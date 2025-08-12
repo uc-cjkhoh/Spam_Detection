@@ -127,22 +127,6 @@ See `requirements.txt` for dependencies, including:
 - `einops`
 - `jupyter`
 
-## Usage
-
-1. **Set up your environment:**
-   ```sh
-   python -m venv venv
-   venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-
-2. **Configure your database and model parameters in `configs/config.yaml`.**
-
-3. **Run the main pipeline:**
-   ```sh
-   python main.py
-   ```
-
 ## Customization
 
 - Add or modify model logic in `src/model.py` and training routines in `src/train.py`.
