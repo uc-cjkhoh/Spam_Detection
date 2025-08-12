@@ -1,77 +1,77 @@
-import numpy as np
+# === Standard Imports ===
 import pandas as pd
-import utils
-import torch  
-
-from torch.utils.data import Dataset, DataLoader
-from imblearn.over_sampling import RandomOverSampler
+import numpy as np
+import sys
+import os
 from tqdm import tqdm
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
-from sentence_transformers import SentenceTransformer 
 
-# class for input data strcuture
-class Data(Dataset):
-    def __init__(self, x_train, y_train):
-        self.x = torch.from_numpy(x_train.astype(np.float32))
-        self.y = torch.from_numpy(y_train).type(torch.LongTensor)
-        self.len = self.x.shape[0]
+# === Project Imports ===
+from src.preprocess import text_normalize
+from src.util import setup_directory_and_file, update_metadata
+from src.active_training import start_active_training
+from src.decorators import timer, error_log
+from src.model import initial_labeling
+# from src.eda import basic_eda
 
-    def __getitem__(self, index):
-        return self.x[index], self.y[index]
-
-    def __len__(self):
-        return self.len 
-
+from loader.data_loader import Database
+from loader.config_loader import cfg
+from loader.logger_loader import logging
+  
+  
+@error_log
+@timer
+def main():
+    setup_directory_and_file()
+    
+    database = Database('mysql')
+    connector = database.connect_db()
+    cur = connector.cursor()
+    
+    all_metadata = database.get_metadata(cur)
+    update_metadata(all_metadata)
+    
+    subdata_log_dt = ('{}/' * len(cfg.active_learning.column_name)).strip('/')
+        
+    for metadata in tqdm(all_metadata.to_numpy()):
+        finished_metadatas = pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)
+        if np.any(np.all(finished_metadatas.to_numpy() == metadata, axis=1)):
+            logging.info(f'Skipping labelled metadata {subdata_log_dt.format(*metadata)}')
+            continue
+        
+        query = cfg.data.query.format(*metadata)
+        logging.info(f'Loading subdata from: {subdata_log_dt.format(*metadata)}')
+        
+        cur.execute(query)
+        unlabel_data = pd.DataFrame(cur.fetchall(), columns=cfg.data.column_name)
+        unlabel_data = text_normalize(unlabel_data.copy()) 
+         
+        if len(pd.read_excel(cfg.active_learning.label_data_file)) == 0:
+            label_data = initial_labeling(unlabel_data[cfg.data.target_column])  
+            label_data.to_excel(
+                f'{cfg.active_learning.label_data_file}', 
+                index=False
+            )
+            
+            update_metadata()
+            logging.info('\nSuccessfully initiated first set of label data.\nDouble check each label and run module again ...')
+        else:    
+            label_data = pd.read_excel(cfg.active_learning.label_data_file)  
+            saved_unlabel_data = pd.read_excel(cfg.active_learning.unlabel_data_file)
+            unlabel_data = pd.concat([unlabel_data, saved_unlabel_data])
+            
+            start_active_training(
+                label_data, 
+                unlabel_data, 
+                threshold=cfg.models.spam_detection.labelling_confidence_threshold
+            )
+    
+            update_metadata()
+        
 
 if __name__ == '__main__':
-    # get dataset
-    data = pd.read_csv('C:/Users/cj_khoh/Documents/UnifiedComms/Data/spam_ham_dataset.csv', encoding='ISO-8859-1')
-    data = pd.DataFrame(data)
-    data = data[['label', 'text']] 
-    # data['text'] = utils.clean_text(data['text'])
-  
-    # text embedding model
-    text_embedding_model = SentenceTransformer('all-mpnet-base-v2')
-
-    # separate train and test data
-    Y = np.array(data.label)
-    Y = pd.factorize(Y)[0]
-
-    X = data.text
-    
-    # embed train sentence
-    embedded_x = []
-    for sent in tqdm(X):
-        embedded_x.append(text_embedding_model.encode(sent))    
-    embedded_x = np.array(embedded_x) 
- 
-    # over-sampling
-    X, Y = RandomOverSampler().fit_resample(embedded_x, Y)
-    
-    # split data
-    x_train, x_test, y_train, y_test = train_test_split(
-        X, Y, test_size=0.2, random_state=20, shuffle=True)
- 
-    # group data
-    train_data = Data(x_train, y_train)
-    test_data = Data(x_test, y_test)
-
-    # initialize batch data for nn_model
-    batch_size = 32
-    trainLoader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=2)
-
-    # train model
-    model = utils.train_model(trainLoader).eval()
-
-    # initializ batch data for testing
-    testLoader = DataLoader(test_data, batch_size=batch_size, shuffle=True, num_workers=2)
-
-    # predict
-    acc, precision, recall, f1_score, pred = utils.predict(model, testLoader) 
-    
-    print(f'Accuracy: {acc}')
-    print(f'Precision: {precision}')
-    print(f'Recall: {recall}')
-    print(f'F1-Score: {f1_score}')
-    
+    try:
+        main()
+    except KeyboardInterrupt as e:
+        logging.error(e, exc_info=True)
+    finally:
+        logging.info('===== End of Execution =====')

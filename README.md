@@ -1,127 +1,137 @@
-# Spam Detection with Neural Networks and Sentence Embeddings
+# Spam Detection from MySQL SMS Data
 
-This project implements a spam detection system using a multi-layer perceptron (MLP) neural network and sentence embeddings from transformer models. The workflow includes data preprocessing, text embedding, model training, evaluation, and batch testing. Additional utilities for text cleaning and 3D visualization of clusters are provided.
+This project provides a modular pipeline for detecting spam in SMS messages sourced directly from a MySQL database. It covers data loading, preprocessing, feature engineering, exploratory data analysis, and is designed for extensibility with model training and evaluation.
 
 ## Project Structure
 
-- [`main.py`](main.py): Main script for training and evaluating the spam detection model.
-- [`utils.py`](utils.py): Utility functions and classes, including the neural network model, training, prediction, and text cleaning.
-- [`test_batch.py`](test_batch.py): Script for batch inference on new sentences using a trained model.
-- [`labelling_with_3D_display.py`](labelling_with_3D_display.py): Script for clustering and visualizing sentence embeddings in 3D.
-- [`spam_ham_dataset.csv`](spam_ham_dataset.csv): Dataset for training and evaluation.
-- [`requirements.txt`](requirements.txt): Python dependencies.
-- [`test.py`](test.py): Additional test script (purpose may vary).
-- `README.md`: Project documentation (this file).
-
-## Features
-
-- **Text Preprocessing:** Cleaning, lemmatization, stopword removal, and more via [`utils.clean_text`](utils.py).
-- **Sentence Embedding:** Uses [Sentence Transformers](https://www.sbert.net/) (`all-mpnet-base-v2`) for high-quality text embeddings.
-- **Neural Network Model:** Deep MLP defined in [`utils.NeuralNetwork`](utils.py) for binary classification (spam/not spam).
-- **Training & Evaluation:** Handles class imbalance with oversampling, splits data, trains the model, and evaluates with accuracy, precision, recall, and F1 score.
-- **Batch Inference:** Predicts spam/not spam for a batch of sentences from a text file ([`test_batch.py`](test_batch.py)).
-- **3D Visualization:** Clusters and visualizes embedded sentences in 3D using UMAP and KMeans ([`labelling_with_3D_display.py`](labelling_with_3D_display.py)).
-
-## Getting Started
-
-### 1. Install Dependencies
-
-Install required packages:
-
-```sh
-pip install -r requirements.txt
+```
+Spam_Detection/
+├── .gitignore
+├── README.md
+├── requirements.txt
+├── copilot-instructions.md
+├── main.py
+├── eda_result.txt
+├── configs/
+│   └── config.yaml 
+└── src/
+    ├── data_loader.py
+    ├── preprocess.py
+    ├── eda.py
+    ├── train.py
+    ├── model.py
+    └── decorators.py
 ```
 
-### 2. Prepare Data
+## File/Folder Descriptions
 
-Ensure your dataset (e.g., `spam_ham_dataset.csv`) is available in the project directory or update the path in [`main.py`](main.py).
+- `.gitignore`  
+  Python virtual environment and cache ignore rules.
 
-### 3. Train the Model
+- `README.md`  
+  Project documentation (this file).
 
-Run the main script to train and evaluate the model:
+- `requirements.txt`  
+  Python dependencies for the project.
 
-```sh
-python main.py
-```
+- `copilot-instructions.md`  
+  Coding standards and helper rules for GitHub Copilot.
 
-- The script reads the dataset, preprocesses text, generates embeddings, oversamples to balance classes, splits data, trains the neural network, and prints evaluation metrics.
+- `main.py`  
+  Main pipeline script: loads config, fetches data, runs preprocessing, EDA, feature engineering, normalization, and model training.
 
-### 4. Batch Prediction
+- `eda_result.txt`  
+  Output of exploratory data analysis (EDA) statistics.
 
-To predict spam/not spam for a batch of sentences in a text file:
+- `configs/config.yaml`  
+  Configuration for database connection, queries, and model parameters.
+ 
+- `src/data_loader.py`  
+  Handles MySQL database connection and data retrieval.
 
-```sh
-python test_batch.py input_sentences.txt
-```
+- `src/preprocess.py`  
+  Data cleaning, normalization, and feature engineering.
 
-- Results are saved to an output file with a timestamp.
+- `src/eda.py`  
+  Exploratory data analysis utilities.
 
-### 5. 3D Visualization
+- `src/train.py`  
+  (Reserved for training logic.)
 
-To visualize clusters of embedded sentences:
+- `src/model.py`  
+  Model definition, embedding, and training logic.
 
-```sh
-python labelling_with_3D_display.py
-```
+- `src/decorators.py`  
+  (Reserved for decorators/utilities.)
 
-- This script clusters the embedded sentences and displays them in a 3D plot.
+## Workflow Overview
 
-## Key Components
+1. **Configuration**  
+   - Set up database and model parameters in `configs/config.yaml`.
 
-### Neural Network Model
+2. **Data Loading**  
+   - `src/data_loader.py`: Connects to MySQL and fetches SMS data.
 
-Defined in [`utils.NeuralNetwork`](utils.py):
+3. **Preprocessing & Feature Engineering**  
+   - `src/preprocess.py`: Cleans and augments data with features.
 
-- Input: 768-dim sentence embeddings
-- Deep MLP with multiple hidden layers and ReLU activations
-- Output: 2 classes (spam, not spam)
+4. **Exploratory Data Analysis**  
+   - `src/eda.py`: Provides data statistics and visualization.
 
-### Text Cleaning
+5. **Modeling**  
+   - `src/model.py`: Embeds text, trains, and evaluates models.
 
-Implemented in [`utils.clean_text`](utils.py):
-
-- Lowercasing, number and punctuation removal, stopword removal, lemmatization, and whitespace normalization.
-
-### Training
-
-See [`utils.train_model`](utils.py):
-
-- Uses Adamax optimizer and cross-entropy loss.
-- Model is saved after training.
-
-### Prediction
-
-See [`utils.predict`](utils.py):
-
-- Computes accuracy, precision, recall, F1 score, and confusion matrix.
-
+6. **Main Pipeline**  
+   - `main.py`: Orchestrates the entire workflow.
+ 
 ## Requirements
 
-- Python 3.7+
-- torch
-- numpy
-- pandas
-- scikit-learn
-- imbalanced-learn
-- nltk
-- sentence-transformers
-- tqdm
-- plotly
-- umap-learn
+See `requirements.txt` for dependencies, including:
+- `mysql-connector-python`
+- `numpy`
+- `pandas`
+- `ftfy`
+- `emoji`
+- `pyyaml`
+- `lingua-language-detector`
+- `scikit-learn`
+- `sentence-transformers`
+- `einops`
+- `jupyter`
 
-See [`requirements.txt`](requirements.txt) for details.
+## Usage
 
-## Notes
+1. **Set up your environment:**
+   ```sh
+   python -m venv venv
+   venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
 
-- The model expects input embeddings of size 768 (from `all-mpnet-base-v2`).
-- Update file paths as needed for your environment.
-- NLTK resources are downloaded at runtime if not already present.
+2. **Configure your database and model parameters in `configs/config.yaml`.**
 
-## License
+3. **Run the main pipeline:**
+   ```sh
+   python main.py
+   ```
 
-This project is for educational and research purposes.
+## Customization
+
+- Add or modify model logic in `src/model.py` and training routines in `src/train.py`.
+- Extend EDA in `src/eda.py` for deeper insights.
+- Adjust feature engineering in `src/preprocess.py` as needed.
+
+## Troubleshooting
+
+- **Model Download Errors:** Ensure you have a stable internet connection for downloading Hugging Face models.
+- **File Paths:** Check that all file paths in `config.yaml` and scripts are correct relative to your working directory.
+- **Vector-based Models:** If using models like `jinaai/jina-embeddings-v4`, ensure you specify the `task` parameter when encoding.
+
+## Copilot Instructions
+
+See `copilot-instructions.md` for coding standards and helper rules.
 
 ---
 
 **Author:**  
-chia jun
+Khoh Chia Jun
