@@ -19,14 +19,14 @@ from .util import has_availabel_model
 
 _model = SentenceTransformer(cfg.models.text_embedding.model_name, trust_remote_code=True)
 _pipe = pipeline('text-classification', model=cfg.models.spam_detection.model_name)
-_predictive_model = SGDClassifier(loss='log_loss')
+_predictive_model = SGDClassifier(loss='modified_huber')
 
 
 @error_log
 @timer
 def text_embedding(messages: pd.Series) -> np.ndarray:
     return _model.encode(
-        messages,  
+        messages.to_list(),  
         batch_size=cfg.models.text_embedding.batch_size, 
         show_progress_bar=True
     )
@@ -66,7 +66,7 @@ def train_model(x_train: np.ndarray=None, y_train: np.ndarray=None, x_test: np.n
     else:
         version = datetime.now().strftime('%Y%m%d') 
         to_folder = cfg.models.save_model_to.folder
-        filename = f'{type(_predictive_model).__name__}-{version}.joblib' 
+        filename = f'{type(_predictive_model).__name__}.joblib' 
         filepath = os.path.join(to_folder, filename)
         
         model = joblib.load(filepath)
@@ -78,10 +78,9 @@ def train_model(x_train: np.ndarray=None, y_train: np.ndarray=None, x_test: np.n
 
 @error_log
 @timer
-def save_model(model):
-    version = datetime.now().strftime('%Y%m%d') 
+def save_model(model): 
     to_folder = cfg.models.save_model_to.folder
-    filename = f'{type(model).__name__}-{version}.joblib' 
+    filename = f'{type(model).__name__}.joblib' 
     filepath = os.path.join(to_folder, filename)
     
     joblib.dump(model, filepath)
@@ -90,10 +89,9 @@ def save_model(model):
     
 @error_log
 @timer
-def update_model(model, x, y):
-    version = datetime.now().strftime('%Y%m%d') 
+def update_model(model, x, y): 
     to_folder = cfg.models.save_model_to.folder
-    filename = f'{type(model).__name__}-{version}.joblib' 
+    filename = f'{type(model).__name__}.joblib' 
     filepath = os.path.join(to_folder, filename)
     
     model.partial_fit(x, y)

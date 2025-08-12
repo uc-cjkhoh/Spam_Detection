@@ -1,6 +1,36 @@
 # Spam Detection from MySQL SMS Data
 
 This project provides a modular pipeline for detecting spam in SMS messages sourced directly from a MySQL database. It covers data loading, preprocessing, feature engineering, exploratory data analysis, and is designed for extensibility with model training and evaluation.
+ 
+```markdown
+## How to Use
+
+1. **Download the module from GitHub**
+2. **Ensure Python 3.13 is installed**
+3. Open **CMD** and navigate to the project folder
+4. Run the following commands:
+    ```CMD
+    python -m venv venv
+    python install -r requirements.txt
+    python main.py
+    ```
+    > On the first run, it will generate the initial set of label data using the Spam Detection LLM Model from [huggingface.com](http://huggingsface.com)
+
+5. **Manually verify** the generated label data
+6. Run:
+    ```CMD
+    python main.py
+    ```
+    to continue the learning process
+7. To test the trained model, run:
+    ```CMD
+    uvicorn application:app --host 0.0.0.0 --port 8000
+    ```
+    This will start a local FastAPI server
+8. Open **http://localhost:8000/docs** or **http://your_device_ip:8000/docs** in your browser
+9. Click the **`Try It Out`** buttons
+10. Test the model by entering random messages
+``` 
 
 ## Project Structure
 
