@@ -15,7 +15,8 @@ def setup_directory_and_file():
     
     # create directories
     os.makedirs(cfg.active_learning.label_data_folder, exist_ok=True)
-    os.makedirs(cfg.active_learning.unlabel_data_folder, exist_ok=True) 
+    os.makedirs(cfg.active_learning.unlabel_data_folder, exist_ok=True)
+    os.makedirs(cfg.active_learning.to_be_fit_folder, exist_ok=True) 
     os.makedirs(cfg.models.save_model_to.folder, exist_ok=True) 
     
     # create files
@@ -35,7 +36,11 @@ def setup_directory_and_file():
         pd.DataFrame(columns=[cfg.data.target_column, cfg.data.target_column + '_label', cfg.data.target_column + '_score']).to_excel(
             cfg.active_learning.unlabel_data_file, index=False
         )
-        
+    if not os.path.isfile(cfg.active_learning.to_be_fit_file):
+        pd.DataFrame(columns=[cfg.data.target_column, cfg.data.target_column + '_label', cfg.data.target_column + '_score']).to_excel(
+            cfg.active_learning.to_be_fit_file, index=False
+        )
+            
 
 @error_log
 @timer
@@ -71,5 +76,8 @@ def update_metadata(all_metadata: pd.DataFrame=None):
 @timer
 def has_availabel_model(model_class: str):
     models_folderpath = cfg.models.save_model_to.folder
-    return model_class in [x.split('-') for x in os.listdir(models_folderpath)][0]
-        
+    
+    if len(os.listdir(models_folderpath)) != 0:
+        return model_class in [x.split('.')[0] for x in os.listdir(models_folderpath)][0]
+    
+    return False

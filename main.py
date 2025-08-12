@@ -54,10 +54,11 @@ def main():
             
             update_metadata()
             logging.info('\nSuccessfully initiated first set of label data.\nDouble check each label and run module again ...')
+            return 0
         else:    
             label_data = pd.read_excel(cfg.active_learning.label_data_file)  
-            saved_unlabel_data = pd.read_excel(cfg.active_learning.unlabel_data_file)
-            unlabel_data = pd.concat([unlabel_data, saved_unlabel_data])
+            to_be_fit_data = pd.read_excel(cfg.active_learning.to_be_fit_file)
+            unlabel_data = pd.concat([unlabel_data, to_be_fit_data])
             
             start_active_training(
                 label_data, 

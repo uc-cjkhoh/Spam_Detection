@@ -13,7 +13,7 @@ models: # define model to perform spam detection
   
   spam_detection:
     model_name: 'mrm8488/bert-tiny-finetuned-sms-spam-detection' 
-    labelling_confidence_threshold: 0.95
+    labelling_confidence_threshold: 0.90
     batch_size: 32
   
   save_model_to:
@@ -67,4 +67,6 @@ active_learning:
   label_data_file: 'data/label/label_data.xlsx'
   unlabel_data_folder: 'data/unlabel'
   unlabel_data_file: 'data/unlabel/unlabel_data.xlsx'
+  to_be_fit_folder: 'data/to_fit'
+  to_be_fit_file: 'data/to_fit/to_fit.xlsx'
 
