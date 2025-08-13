@@ -2,7 +2,6 @@
 
 This project provides a modular pipeline for detecting spam in SMS messages sourced directly from a MySQL database. It covers data loading, preprocessing, feature engineering, exploratory data analysis, and is designed for extensibility with model training and evaluation.
  
-```markdown
 ## How to Use
 
 1. **Download the module from GitHub**
@@ -30,7 +29,6 @@ This project provides a modular pipeline for detecting spam in SMS messages sour
 8. Open **http://localhost:8000/docs** or **http://your_device_ip:8000/docs** in your browser
 9. Click the **`Try It Out`** buttons
 10. Test the model by entering random messages
-``` 
 
 ## Project Structure
 

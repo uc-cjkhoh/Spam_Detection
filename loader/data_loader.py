@@ -2,7 +2,6 @@ import sys
 import pandas as pd
 import mysql.connector
 
-from src.util import update_metadata
 from src.decorators import timer, error_log
 from .config_loader import cfg
 

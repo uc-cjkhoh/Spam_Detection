@@ -12,7 +12,7 @@ from loader.logger_loader import logging
 
 @error_log
 @timer
-def start_active_training(label_data: pd.DataFrame, unlabel_data: pd.DataFrame, threshold: float):
+def start_active_training(label_data: pd.DataFrame, unlabel_data: pd.DataFrame, to_be_fit_data: pd.DataFrame, threshold: float):
     x_test = text_embedding(unlabel_data[cfg.data.target_column])
      
     y_test = confidence_score = None
@@ -40,12 +40,12 @@ def start_active_training(label_data: pd.DataFrame, unlabel_data: pd.DataFrame, 
     new_unlabel_data = result_data.iloc[new_unlabel_idx[0]]
     
     update_model(model, x_test[new_label_idx], y_test[new_label_idx])
-    update_label_unlabel_file(new_label_data, new_unlabel_data) 
+    update_data_files(new_label_data, new_unlabel_data) 
 
 
 @error_log 
 @timer
-def update_label_unlabel_file(new_label: pd.DataFrame, new_unlabel: pd.DataFrame):
+def update_data_files(new_label: pd.DataFrame, new_unlabel: pd.DataFrame):
     label_filepath = cfg.active_learning.label_data_file
     unlabel_filepath = cfg.active_learning.unlabel_data_file
     
@@ -57,3 +57,8 @@ def update_label_unlabel_file(new_label: pd.DataFrame, new_unlabel: pd.DataFrame
     
     updated_label_data.to_excel(label_filepath, index=False)
     updated_unlabel_data.to_excel(unlabel_filepath, index=False)
+    
+    # remove all data in to_fit.xlsx
+    pd.DataFrame(columns=[cfg.data.target_column, cfg.data.target_column + '_label', cfg.data.target_column + '_score']).to_excel(
+        cfg.active_learning.to_be_fit_file, index=False
+    )

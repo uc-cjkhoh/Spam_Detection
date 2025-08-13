@@ -1,13 +1,19 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+import os
 import joblib
 import pandas as pd
 
-from src.model import text_embedding
+from loader.config_loader import cfg
+from src.model import text_embedding, _predictive_model
 
-model = joblib.load('models/SGDClassifier-20250811.joblib')
-app = FastAPI(title='Spam Detection Model (SVC)')
+model_folder = cfg.models.save_model_to.folder
+model_filename = f'{type(_predictive_model).__name__}.joblib'
+filepath = os.path.join(model_folder, model_filename)
+
+model = joblib.load(filepath)
+app = FastAPI(title='Spam Detection Module')
 
 class ModelData(BaseModel):
     message: str

@@ -63,6 +63,7 @@ def main():
             start_active_training(
                 label_data, 
                 unlabel_data, 
+                to_be_fit_data,
                 threshold=cfg.models.spam_detection.labelling_confidence_threshold
             )
     
