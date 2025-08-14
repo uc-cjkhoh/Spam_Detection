@@ -14,6 +14,10 @@ This project provides a modular pipeline for detecting spam in SMS messages sour
     python main.py
     ```
     > On the first run, it will generate the initial set of label data using the Spam Detection LLM Model from [huggingface.com](http://huggingsface.com)
+    > If getting error OSError: [Errno 28] No space left on device: '/home/unified/.cache/huggingface', please set the path for huggingface module
+    ```CMD
+    export HF_HOME='[YOUR_PREFER_PATH]'
+    ```
 
 5. **Manually verify** the generated label data
 6. Run:
