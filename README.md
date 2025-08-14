@@ -30,6 +30,27 @@ This project provides a modular pipeline for detecting spam in SMS messages sour
 9. Click the **`Try It Out`** buttons
 10. Test the model by entering random messages 
 
+## Workflow Overview
+![Active Learning Process](diagrams/Active%20Learning%20Process.jpg)
+
+1. **Configuration**  
+   - Set up database and model parameters in `configs/config.yaml`.
+
+2. **Data Loading**  
+   - `src/data_loader.py`: Connects to MySQL and fetches SMS data.
+
+3. **Preprocessing & Feature Engineering**  
+   - `src/preprocess.py`: Cleans and augments data with features.
+
+4. **Exploratory Data Analysis**  
+   - `src/eda.py`: Provides data statistics and visualization.
+
+5. **Modeling**  
+   - `src/model.py`: Embeds text, trains, and evaluates models.
+
+6. **Main Pipeline**  
+   - `main.py`: Orchestrates the entire workflow.
+ 
 ## Project Structure
 
 ```
@@ -92,26 +113,6 @@ Spam_Detection/
 - `src/decorators.py`  
   (Reserved for decorators/utilities.)
 
-## Workflow Overview
-
-1. **Configuration**  
-   - Set up database and model parameters in `configs/config.yaml`.
-
-2. **Data Loading**  
-   - `src/data_loader.py`: Connects to MySQL and fetches SMS data.
-
-3. **Preprocessing & Feature Engineering**  
-   - `src/preprocess.py`: Cleans and augments data with features.
-
-4. **Exploratory Data Analysis**  
-   - `src/eda.py`: Provides data statistics and visualization.
-
-5. **Modeling**  
-   - `src/model.py`: Embeds text, trains, and evaluates models.
-
-6. **Main Pipeline**  
-   - `main.py`: Orchestrates the entire workflow.
- 
 ## Requirements
 
 See `requirements.txt` for dependencies, including:
