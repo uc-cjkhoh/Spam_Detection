@@ -69,7 +69,27 @@ def update_metadata(all_metadata: pd.DataFrame=None):
         
         updated_finished.to_excel(finished_metadata, index=False)
         updated_unfinished.to_excel(unfinished_metadata, index=False)
-        
+
+
+@error_log 
+@timer
+def update_data_files(new_label: pd.DataFrame, new_unlabel: pd.DataFrame):
+    label_filepath = cfg.active_learning.label_data_file
+    unlabel_filepath = cfg.active_learning.unlabel_data_file
+    
+    old_label = pd.read_excel(label_filepath)
+    old_unlabel = pd.read_excel(unlabel_filepath)
+    
+    updated_label_data = pd.concat([old_label, new_label])
+    updated_unlabel_data = pd.concat([old_unlabel, new_unlabel])
+    
+    updated_label_data.to_excel(label_filepath, index=False)
+    updated_unlabel_data.to_excel(unlabel_filepath, index=False)
+    
+    # remove all data in to_fit.xlsx
+    pd.DataFrame(columns=[cfg.data.target_column, cfg.data.target_column + '_label', cfg.data.target_column + '_score']).to_excel(
+        cfg.active_learning.to_be_fit_file, index=False
+    )
     
     
 @error_log

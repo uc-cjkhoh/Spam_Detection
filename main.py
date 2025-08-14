@@ -3,14 +3,16 @@ import pandas as pd
 import numpy as np
 import sys
 import os
+
 from tqdm import tqdm
+from sklearn.linear_model import SGDClassifier
 
 # === Project Imports ===
 from src.preprocess import text_normalize
 from src.util import setup_directory_and_file, update_metadata
-from src.active_training import start_active_training
-from src.decorators import timer, error_log
-from src.model import initial_labeling
+from src.decorators import timer, error_log 
+from src.llm import initial_labeling
+from src.model import Custom_Models
 # from src.eda import basic_eda
 
 from loader.data_loader import Database
@@ -31,7 +33,12 @@ def main():
     update_metadata(all_metadata)
     
     subdata_log_dt = ('{}/' * len(cfg.active_learning.column_name)).strip('/')
-        
+    
+    sgd_model = SGDClassifier(loss='modified_huber', random_state=42)
+    models = Custom_Models([
+        sgd_model
+    ])
+    
     for metadata in tqdm(all_metadata.to_numpy()):
         finished_metadatas = pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)
         if np.any(np.all(finished_metadatas.to_numpy() == metadata, axis=1)):
@@ -59,13 +66,13 @@ def main():
             label_data = pd.read_excel(cfg.active_learning.label_data_file)  
             to_be_fit_data = pd.read_excel(cfg.active_learning.to_be_fit_file)
             unlabel_data = pd.concat([unlabel_data, to_be_fit_data])
-            
-            start_active_training(
+             
+            models.start_active_training(
                 label_data, 
                 unlabel_data, 
                 to_be_fit_data,
                 threshold=cfg.models.spam_detection.labelling_confidence_threshold
-            )
+            ) 
     
             update_metadata()
         

@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 import os
 
-from .decorators import error_log, timer 
-from .model import text_embedding, train_model, save_model, update_model, _predictive_model
+from .decorators import error_log, timer  
 from .util import has_availabel_model
+from .llm import text_embedding
 
 from loader.config_loader import cfg
 from loader.logger_loader import logging
@@ -12,11 +12,12 @@ from loader.logger_loader import logging
 
 @error_log
 @timer
-def start_active_training(label_data: pd.DataFrame, unlabel_data: pd.DataFrame, to_be_fit_data: pd.DataFrame, threshold: float):
+def start_active_training(all_models, label_data: pd.DataFrame, unlabel_data: pd.DataFrame, to_be_fit_data: pd.DataFrame, threshold: float):
     x_test = text_embedding(unlabel_data[cfg.data.target_column])
-     
     y_test = confidence_score = None
-    if not has_availabel_model(type(_predictive_model).__name__):
+     
+    
+    if not has_availabel_model(type(model).__name__):
         logging.info('No existing model, train a new one ...')
         x_train = text_embedding(label_data[cfg.data.target_column])
         y_train = label_data[cfg.data.target_column + '_label'].to_numpy() 
