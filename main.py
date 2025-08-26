@@ -25,7 +25,13 @@ from loader.logger_loader import logging
 def main():
     setup_directory_and_file()
     
-    database = Database('mysql')
+    database = Database(
+        host=cfg.server.host,
+        port=cfg.server.port,
+        user=cfg.server.user,
+        password=cfg.server.password
+    )
+    
     connector = database.connect_db()
     cur = connector.cursor()
     
@@ -64,13 +70,10 @@ def main():
             return 0
         else:    
             label_data = pd.read_excel(cfg.active_learning.label_data_file)  
-            to_be_fit_data = pd.read_excel(cfg.active_learning.to_be_fit_file)
-            unlabel_data = pd.concat([unlabel_data, to_be_fit_data])
-             
+            
             models.start_active_training(
                 label_data, 
                 unlabel_data, 
-                to_be_fit_data,
                 threshold=cfg.models.spam_detection.labelling_confidence_threshold
             ) 
     

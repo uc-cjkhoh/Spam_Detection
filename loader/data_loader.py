@@ -7,9 +7,11 @@ from .config_loader import cfg
 
 
 class Database:
-    def __init__(self, source):
-        self.source = source 
-    
+    def __init__(self, host, port, user, password): 
+        self.host = host
+        self.port = port
+        self.user = user
+        self.password = password
     
     @error_log 
     @timer
@@ -20,20 +22,17 @@ class Database:
         Raises:
             ValueError: source unknown
         """
-        
-        if self.source is None:
-            raise ValueError("Source is not define, make source is define in config.yaml")
-        else:
-            try:
-                return mysql.connector.connect(
-                    host=cfg.server.host,
-                    port=cfg.server.port,
-                    user=cfg.server.user,
-                    password=cfg.server.password
-                )
-            except mysql.connector.Error as e:
-                print(f'Data Loader: Connection failed due to: {e}')
-                sys.exit()
+         
+        try:
+            return mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password
+            )
+        except mysql.connector.Error as e:
+            print(f'Data Loader: Connection failed due to: {e}')
+            sys.exit()
     
     
     @error_log

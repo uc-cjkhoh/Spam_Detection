@@ -20,6 +20,8 @@ _tokenizer = AutoTokenizer.from_pretrained(cfg.models.spam_detection.model_name)
 @error_log
 @timer
 def text_embedding(messages: pd.Series) -> np.ndarray:
+    messages = messages.fillna("").astype(str)
+    
     # Tokenize with truncation
     truncated_texts = []
     for msg in messages.to_list():

@@ -33,20 +33,78 @@ class Custom_Models:
             y_test = model.predict(x_test)
             confidence_score = model.predict_proba(x_test)
             return y_test, confidence_score.max(axis=1)
+    
+    @error_log
+    @timer
+    def save_model(self, model): 
+        to_folder = cfg.models.save_model_to.folder
+        filename = f'{type(model).__name__}.joblib' 
+        filepath = os.path.join(to_folder, filename)
+        
+        joblib.dump(model, filepath)
+        logging.info(f'Saved to: {filepath}')
         
     @error_log
     @timer
-    def start_active_training(self, label_data: pd.DataFrame, unlabel_data: pd.DataFrame, to_be_fit_data: pd.DataFrame, threshold: float):
+    def update_model(self, model, x, y): 
+        to_folder = cfg.models.save_model_to.folder
+        filename = f'{type(model).__name__}.joblib' 
+        filepath = os.path.join(to_folder, filename)
+        
+        model.partial_fit(x, y, classes=np.unique(y))
+        
+        joblib.dump(model, filepath)
+        logging.info(f'Model {filename} was updated')
+    
+    @error_log
+    @timer
+    def check_any_data_to_fit(self):
+        to_be_fit_folder = cfg.active_learning.to_be_fit_folder
+        to_be_fit_data = None 
+    
+        for _file in os.listdir(to_be_fit_folder):
+            if to_be_fit_data is None:
+                to_be_fit_data = pd.read_excel(os.path.join(to_be_fit_folder, _file))
+            else:
+                to_be_fit_data = pd.concat([to_be_fit_data, pd.read_excel(os.path.join(to_be_fit_folder, _file))])                        
+                
+        for model in self.models:    
+            if to_be_fit_data is not None:
+                logging.info(f'Fitting data into {type(model).__name__}')
+                self.update_model(
+                    model=model, 
+                    x=text_embedding(to_be_fit_data[cfg.data.target_column]), 
+                    y=to_be_fit_data[cfg.data.target_column + '_label']
+                )
+                # remove all data in to_fit.xlsx
+                pd.DataFrame(columns=[cfg.data.target_column, cfg.data.target_column + '_label', cfg.data.target_column + '_score']).to_excel(
+                    cfg.active_learning.to_be_fit_file, index=False
+                )
+                logging.info(f'Done fitting data into {type(model).__name__}')
+            else:
+                logging.info("No data waiting to be fit.")
+                break
+        
+    @error_log
+    @timer
+    def start_active_training(self, label_data: pd.DataFrame, unlabel_data: pd.DataFrame, threshold: float):
+        self.check_any_data_to_fit()
+        
+        all_model_initialed = True
+        for model in self.models:
+            all_model_initialed *= has_availabel_model(type(model).__name__)            
+        
+        if not all_model_initialed:
+            x_train = text_embedding(label_data[cfg.data.target_column])
+            y_train = label_data[cfg.data.target_column + '_label'].to_numpy() 
+            
         x_test = text_embedding(unlabel_data[cfg.data.target_column])
         y_test = None
         confidence_score = None
-        
-        for model in self.models:
+         
+        for model in self.models:          
             if not has_availabel_model(type(model).__name__):
-                logging.info(f'No existing {type(model).__name__} model, training one ...')
-                x_train = text_embedding(label_data[cfg.data.target_column])
-                y_train = label_data[cfg.data.target_column + '_label'].to_numpy() 
-                
+                logging.info(f'No existing {type(model).__name__} model, training one ...')  
                 y_test, confidence_score = self.train_model(model, x_train, y_train, x_test) 
                 self.save_model(model)   
             else:
@@ -67,26 +125,4 @@ class Custom_Models:
             
             self.update_model(model, x_test[new_label_idx], y_test[new_label_idx])
             update_data_files(new_label_data, new_unlabel_data) 
-
-    @error_log
-    @timer
-    def save_model(self, model): 
-        to_folder = cfg.models.save_model_to.folder
-        filename = f'{type(model).__name__}.joblib' 
-        filepath = os.path.join(to_folder, filename)
-        
-        joblib.dump(model, filepath)
-        logging.info(f'Saved to: {filepath}')
-        
-    @error_log
-    @timer
-    def update_model(self, model, x, y): 
-        to_folder = cfg.models.save_model_to.folder
-        filename = f'{type(model).__name__}.joblib' 
-        filepath = os.path.join(to_folder, filename)
-        
-        model.partial_fit(x, y)
-        
-        joblib.dump(model, filepath)
-        logging.info(f'Model {filename} was updated')
         

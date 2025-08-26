@@ -9,7 +9,7 @@ server: # server configuration
 models: # define model to perform spam detection
   text_embedding:
     model_name: 'jinaai/jina-embeddings-v3'
-    batch_size: 4
+    batch_size: 8
   
   spam_detection:
     model_name: 'mrm8488/bert-tiny-finetuned-sms-spam-detection' 
@@ -29,11 +29,7 @@ module_log:
       label_record_file: 'logs/process/label_metadata.xlsx'
       unlabel_record_file: 'logs/process/unlabel_metadata.xlsx'
 
-
-cache:
-  folder: 'cache'  
-
-
+ 
 data:
   query: # the dataset import into python module
     'SELECT 
@@ -65,8 +61,12 @@ active_learning:
   column_name: ['year', 'month', 'day', 'hour', 'minute']
   label_data_folder: 'data/label'
   label_data_file: 'data/label/label_data.xlsx'
-  unlabel_data_folder: 'data/unlabel'
-  unlabel_data_file: 'data/unlabel/unlabel_data.xlsx'
-  to_be_fit_folder: 'data/to_fit'
-  to_be_fit_file: 'data/to_fit/to_fit.xlsx'
+  unlabel_data_folder: 'data/unlabel' 
+  to_be_fit_folder: 'data/to_fit' 
 
+
+hypothesis_testing:
+  overall_perf_test:
+    epoch: 5
+    alpha: 0.05
+    
