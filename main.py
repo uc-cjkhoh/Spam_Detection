@@ -41,13 +41,12 @@ def main():
     subdata_log_dt = ('{}/' * len(cfg.active_learning.column_name)).strip('/')
     
     sgd_model = SGDClassifier(loss='modified_huber', random_state=42)
-    models = Custom_Models([
-        sgd_model
-    ])
+    _model = Custom_Models(sgd_model)
     
     for metadata in tqdm(all_metadata.to_numpy()):
         finished_metadatas = pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)
-        if np.any(np.all(finished_metadatas.to_numpy() == metadata, axis=1)):
+        
+        if len(finished_metadatas) != 0 and np.any(np.all(finished_metadatas.to_numpy() == metadata, axis=1)):
             logging.info(f'Skipping labelled metadata {subdata_log_dt.format(*metadata)}')
             continue
         
@@ -58,20 +57,33 @@ def main():
         unlabel_data = pd.DataFrame(cur.fetchall(), columns=cfg.data.column_name)
         unlabel_data = text_normalize(unlabel_data.copy()) 
          
-        if len(pd.read_excel(cfg.active_learning.label_data_file)) == 0:
+        if len(pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)) == 0:
             label_data = initial_labeling(unlabel_data[cfg.data.target_column])  
+            
+            label_folder = cfg.active_learning.label_data_folder
+            label_filename = f'{len(os.listdir(label_folder))}.xlsx' 
+            label_filepath = os.path.join(label_folder, label_filename)
+            
             label_data.to_excel(
-                f'{cfg.active_learning.label_data_file}', 
+                label_filepath, 
                 index=False
             )
             
             update_metadata()
             logging.info('\nSuccessfully initiated first set of label data.\nDouble check each label and run module again ...')
             return 0
-        else:    
-            label_data = pd.read_excel(cfg.active_learning.label_data_file)  
+        else:
+            label_folder = cfg.active_learning.label_data_folder
+            label_files = os.listdir(label_folder)
             
-            models.start_active_training(
+            label_data = None
+            for _file in label_files:
+                if label_data is None:
+                    label_data = pd.read_excel(os.path.join(label_folder, _file))
+                else:
+                    label_data = pd.concat([label_data, pd.read_excel(os.path.join(label_folder, _file))])                        
+                    
+            _model.start_active_training(
                 label_data, 
                 unlabel_data, 
                 threshold=cfg.models.spam_detection.labelling_confidence_threshold

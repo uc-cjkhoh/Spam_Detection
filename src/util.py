@@ -27,10 +27,6 @@ def setup_directory_and_file():
     if not os.path.isfile(cfg.module_log.process_log_path.files.unlabel_record_file):
         pd.DataFrame(columns=cfg.active_learning.column_name).to_excel(
             cfg.module_log.process_log_path.files.unlabel_record_file, index=False
-        )
-    if not os.path.isfile(cfg.active_learning.label_data_file):
-        pd.DataFrame(columns=[cfg.data.target_column, cfg.data.target_column + '_label', cfg.data.target_column + '_score']).to_excel(
-            cfg.active_learning.label_data_file, index=False
         ) 
             
 
@@ -66,7 +62,12 @@ def update_metadata(all_metadata: pd.DataFrame=None):
 @error_log 
 @timer
 def update_data_files(new_label: pd.DataFrame, new_unlabel: pd.DataFrame):
-    label_filepath = cfg.active_learning.label_data_file 
+    # label_filepath = cfg.active_learning.label_data_file 
+    
+    label_folder = cfg.active_learning.label_data_folder
+    label_filename = f'{len(os.listdir(label_folder))}.xlsx' 
+    label_filepath = os.path.join(label_folder, label_filename)
+    
     unlabel_folder = cfg.active_learning.unlabel_data_folder
     unlabel_filename = f'{len(os.listdir(unlabel_folder))}.xlsx' 
     unlabel_filepath = os.path.join(unlabel_folder, unlabel_filename)

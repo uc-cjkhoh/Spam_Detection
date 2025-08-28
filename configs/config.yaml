@@ -40,8 +40,7 @@ data:
       YEAR(current_datetime) = {}
       AND MONTH(current_datetime) = {}
       AND DAY(current_datetime) = {}
-      AND HOUR(current_datetime) = {}
-      AND MINUTE(current_datetime) = {}'
+      AND HOUR(current_datetime) = {}'
   column_name: ['message']
   target_column: 'message' # specific the main column that listed in `column_name`
   drop_null: false
@@ -54,19 +53,18 @@ active_learning:
       YEAR(current_datetime), 
       MONTH(current_datetime), 
       DAY(current_datetime), 
-      HOUR(current_datetime),
-      MINUTE(current_datetime)
+      HOUR(current_datetime)
     FROM 
       sms_spam_cd.data_tdr_spam_filter'
-  column_name: ['year', 'month', 'day', 'hour', 'minute']
-  label_data_folder: 'data/label'
-  label_data_file: 'data/label/label_data.xlsx'
+  column_name: ['year', 'month', 'day', 'hour']
+  label_data_folder: 'data/label' 
   unlabel_data_folder: 'data/unlabel' 
   to_be_fit_folder: 'data/to_fit' 
 
 
 hypothesis_testing:
   overall_perf_test:
-    epoch: 5
+    sample_size: 0.3
+    target_performance: 0.9 
     alpha: 0.05
     
