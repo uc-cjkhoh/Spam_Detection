@@ -70,4 +70,9 @@ def main():
                 classification_report(y_true, y_pred)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        logging.error(e)
+    finally:
+        logging.info("End of Execution")

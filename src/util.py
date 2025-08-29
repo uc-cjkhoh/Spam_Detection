@@ -71,14 +71,9 @@ def update_data_files(new_label: pd.DataFrame, new_unlabel: pd.DataFrame):
     unlabel_folder = cfg.active_learning.unlabel_data_folder
     unlabel_filename = f'{len(os.listdir(unlabel_folder))}.xlsx' 
     unlabel_filepath = os.path.join(unlabel_folder, unlabel_filename)
-    
-    old_label = pd.read_excel(label_filepath) 
-    
-    updated_label_data = pd.concat([old_label, new_label]) 
-
-    updated_label_data.to_excel(label_filepath, index=False)
+      
     new_unlabel.to_excel(unlabel_filepath, index=False)
-    
+    new_label.to_excel(label_filepath, index=False)
     
 @error_log
 @timer
