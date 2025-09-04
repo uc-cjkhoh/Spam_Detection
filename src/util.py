@@ -16,7 +16,7 @@ def setup_directory_and_file():
     # create directories
     os.makedirs(cfg.active_learning.label_data_folder, exist_ok=True)
     os.makedirs(cfg.active_learning.unlabel_data_folder, exist_ok=True)
-    os.makedirs(cfg.active_learning.to_be_fit_folder, exist_ok=True) 
+    os.makedirs(cfg.active_learning.to_be_fit_folder, exist_ok=True)  
     os.makedirs(cfg.models.save_model_to.folder, exist_ok=True) 
     
     # create files
@@ -74,6 +74,7 @@ def update_data_files(new_label: pd.DataFrame, new_unlabel: pd.DataFrame):
       
     new_unlabel.to_excel(unlabel_filepath, index=False)
     new_label.to_excel(label_filepath, index=False)
+   
     
 @error_log
 @timer

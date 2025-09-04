@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import joblib
+import shutil
 import os  
 
 from datetime import datetime
@@ -38,66 +39,84 @@ class Custom_Models:
     
     @error_log
     @timer
-    def store_old_model(self, model, to_folder):
-        filename = f'{type(model).__name__}.joblib'
-        model_path = os.path.join(to_folder, filename)
-        creation_time = datetime.fromtimestamp(os.path.getmtime(model_path)).strftime("%Y-%m-%d_%H_%M_%S")
-    
-        new_filename = f'{creation_time}-{type(model).__name__}.joblib'
-        to_path = os.path.join(to_folder, new_filename)
-        
-        joblib.dump(model, to_path)
-        logging.info(f'Old mode saved to: {to_path}')
-    
+    def store_old_model(self, to_folder=cfg.models.save_model_to.folder): 
+        try:
+            # Get current model path
+            filename = f'{type(self.model).__name__}.joblib'
+            model_path = os.path.join(to_folder, filename)
+            
+            if not os.path.exists(model_path):
+                logging.warning(f"No existing model found at {model_path}")
+                return False
+                
+            # Create backup filename with timestamp
+            creation_time = datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+            new_filename = f'{creation_time}-{type(self.model).__name__}.joblib'
+            save_path = os.path.join(to_folder, new_filename)
+            
+            # Save current model state as backup
+            joblib.dump(self.model, save_path)
+            logging.info(f'Model saved to: {save_path}')
+            return True
+            
+        except Exception as e:
+            logging.error(f"Failed to store model backup: {str(e)}")
+            raise
+
     @error_log
     @timer
-    def save_model(self, model): 
+    def save_model(self): 
         to_folder = cfg.models.save_model_to.folder
-        filename = f'{type(model).__name__}.joblib' 
+        filename = f'{type(self.model).__name__}.joblib' 
         filepath = os.path.join(to_folder, filename)
         
-        joblib.dump(model, filepath)
+        joblib.dump(self.model, filepath)
         logging.info(f'Saved to: {filepath}')
         
     @error_log
     @timer
-    def update_model(self, model, x, y): 
-        to_folder = cfg.models.save_model_to.folder
-        filename = f'{type(model).__name__}.joblib' 
-        
-        self.store_old_model(model, to_folder)
-        model.partial_fit(x, y, classes=np.unique(y))
-        
-        filepath = os.path.join(to_folder, filename)
-        joblib.dump(model, filepath)
-        logging.info(f'Model {filename} was updated')
-    
+    def update_model(self, x, y): 
+        """Update model with new data after creating backup"""
+        try:
+            to_folder = cfg.models.save_model_to.folder
+            filename = f'{type(self.model).__name__}.joblib' 
+            filepath = os.path.join(to_folder, filename)
+            
+            # Store current model state before updating
+            backup_created = self.store_old_model(to_folder)
+            if backup_created:
+                logging.info("Created backup of current model state")
+            
+            # Update model with new data
+            self.model.partial_fit(x, y, classes=np.unique(y))
+            
+            # Save updated model
+            joblib.dump(self.model, filepath)
+            logging.info(f'Model {filename} updated with {len(x)} new samples')
+            
+        except Exception as e:
+            logging.error(f"Failed to update model: {str(e)}")
+            raise
+
     @error_log
     @timer
     def check_any_data_to_fit(self):
-        to_be_fit_folder = cfg.active_learning.to_be_fit_folder
-        to_be_fit_data = None 
+        to_be_fit_folder = cfg.active_learning.to_be_fit_folder 
     
         for _file in os.listdir(to_be_fit_folder):
-            if to_be_fit_data is None:
-                to_be_fit_data = pd.read_excel(os.path.join(to_be_fit_folder, _file))
-            else:
-                to_be_fit_data = pd.concat([to_be_fit_data, pd.read_excel(os.path.join(to_be_fit_folder, _file))])                        
-                 
-        if to_be_fit_data is not None:
-            logging.info(f'Fitting data into {type(self.model).__name__}')
+            filepath = os.path.join(to_be_fit_folder, _file)
+            to_be_fit_data = pd.read_excel(filepath)
+              
+            logging.info(f'Fitting {_file} into {type(self.model).__name__}')
             self.update_model(
                 model=self.model, 
                 x=text_embedding(to_be_fit_data[cfg.data.target_column]), 
                 y=to_be_fit_data[cfg.data.target_column + '_label']
             )
-            # remove all data in to_fit.xlsx
-            pd.DataFrame(columns=[cfg.data.target_column, cfg.data.target_column + '_label', cfg.data.target_column + '_score']).to_excel(
-                cfg.active_learning.to_be_fit_file, index=False
-            )
-            logging.info(f'Done fitting data into {type(self.model).__name__}')
-        else:
-            logging.info("No data waiting to be fit.") 
+            
+            shutil.move(filepath, cfg.active_learning.done_fit_folder)
+            
+            logging.info(f'Done fitting {_file} into {type(self.model).__name__}')
         
     @error_log
     @timer
@@ -115,7 +134,7 @@ class Custom_Models:
         if not has_availabel_model(type(self.model).__name__):
             logging.info(f'No existing {type(self.model).__name__} model, training one ...')  
             y_test, confidence_score = self.train_model(self.model, x_train, y_train, x_test) 
-            self.save_model(self.model)   
+            self.save_model()   
         else:
             logging.info(f'Found existing {type(self.model).__name__}, loading model ...')
             y_test, confidence_score = self.train_model(model=self.model, x_test=x_test)
@@ -132,6 +151,5 @@ class Custom_Models:
         new_label_data = result_data.iloc[new_label_idx[0]]
         new_unlabel_data = result_data.iloc[new_unlabel_idx[0]]
         
-        self.update_model(self.model, x_test[new_label_idx], y_test[new_label_idx])
-        update_data_files(new_label_data, new_unlabel_data) 
-        
+        self.update_model(x_test[new_label_idx], y_test[new_label_idx])
+        update_data_files(new_label_data, new_unlabel_data)

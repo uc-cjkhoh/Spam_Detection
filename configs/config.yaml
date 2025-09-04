@@ -59,7 +59,7 @@ active_learning:
   column_name: ['year', 'month', 'day', 'hour']
   label_data_folder: 'data/label' 
   unlabel_data_folder: 'data/unlabel' 
-  to_be_fit_folder: 'data/to_fit' 
+  to_be_fit_folder: 'data/to_fit'  
 
 
 hypothesis_testing:
@@ -67,4 +67,5 @@ hypothesis_testing:
     sample_size: 0.3
     target_performance: 0.9 
     alpha: 0.05
-    
+  model_comparison:
+    no_of_test: 5

@@ -1,6 +1,7 @@
 # === Standard Imports ===
 import pandas as pd
 import numpy as np
+import joblib
 import sys
 import os
 
@@ -40,7 +41,13 @@ def main():
     
     subdata_log_dt = ('{}/' * len(cfg.active_learning.column_name)).strip('/')
     
-    sgd_model = SGDClassifier(loss='modified_huber', random_state=42)
+    if len(os.listdir(cfg.models.save_model_to.folder)) == 0:
+        sgd_model = SGDClassifier(loss='modified_huber')
+    else:
+        model_name = f'{type(SGDClassifier()).__name__}.joblib'
+        model_folder = cfg.models.save_model_to.folder
+        sgd_model = joblib.load(os.path.join(model_folder, model_name))
+    
     _model = Custom_Models(sgd_model)
     
     for metadata in tqdm(all_metadata.to_numpy()):
