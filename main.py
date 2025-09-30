@@ -131,7 +131,8 @@ def main(db_cursor):
             logging.info('\nInitialization Successed ...')
             return 0
         else: 
-            initialize_model(SGDClassifier(loss='modified_huber'))
+            if len(os.listdir(cfg.models.save_model_to.folder)) == 0:
+                initialize_model(SGDClassifier(loss='modified_huber'))
             
             # load latest model
             latest_model = load_model()
