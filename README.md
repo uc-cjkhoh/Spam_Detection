@@ -1,7 +1,7 @@
 # Spam Detection from MySQL SMS Data
 
 This project provides a modular pipeline for detecting spam in SMS messages sourced directly from a MySQL database. It covers data loading, preprocessing, feature engineering, exploratory data analysis, and is designed for extensibility with model training and evaluation.
-  
+
 ## How to Use
 
 1. **Download the module from GitHub**
@@ -132,22 +132,6 @@ See `requirements.txt` for dependencies, including:
 - `sentence-transformers`
 - `einops`
 - `jupyter`
-
-## Usage
-
-1. **Set up your environment:**
-   ```sh
-   python -m venv venv
-   venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-
-2. **Configure your database and model parameters in `configs/config.yaml`.**
-
-3. **Run the main pipeline:**
-   ```sh
-   python main.py
-   ```
 
 ## Customization
 
