@@ -25,7 +25,7 @@ class Data:
     def __init__(self, file_path: str):
         self.data = pd.read_excel(file_path)
     
-    def get_random_sample(self, size=0.2):
+    def get_random_sample(self, size=0.1):
         if isinstance(size, float):
             n = int(len(self.data) * size)
         else:
@@ -82,8 +82,9 @@ def main():
         if value is not None:
             arg_name = name
             arg_value = value
-        else:
-            raise ValueError(f{'Missing value for argument "{name}"'})
+    
+    if arg_name is None or arg_value is None:
+        raise ValueError(f'Invalid argument or argument value: {arg_name} {arg_value}')
             
     # load model(s)
     model_list = []
@@ -116,7 +117,7 @@ def main():
     for _filepath in tqdm(all_data_filepath):
         data = Data(os.path.join(cfg.active_learning.label_data_folder, _filepath))
          
-        for no_of_test in tqdm(range(cfg.hypothesis_testing.model_comparison.no_of_test)):
+        for no_of_test in tqdm(range(cfg.hypothesis_testing.no_of_test)):
             random_sample = data.get_random_sample()
             random_message, y_true = random_sample[cfg.data.target_column], random_sample[cfg.data.target_column + '_label']
             message_vector = text_embedding(random_message)
@@ -128,7 +129,7 @@ def main():
                     result_table, 
                     pd.DataFrame([[
                         model.get_model_name(),
-                        _file,
+                        _filepath,
                         'test' + str(no_of_test+1),
                         accuracy_score(y_true, y_pred),
                         precision_score(y_true, y_pred),
@@ -136,10 +137,10 @@ def main():
                         f1_score(y_true, y_pred)
                     ]], columns=result_columns)
                 ])
-        
-    # output the result in order based on performance
-    result_table.to_excel(f'hypothesis_testing/{datetime.now().strftime("%Y%m%d_%H_%M_%S")}.xlsx')
-    
+                
+                result_table.to_excel(f'model_performance-{datetime.now().strftime("%Y%m%d")}.xlsx', index=False)
+                logging.info(f'Done testing model: `{model.get_model_name()}` on data `{_filepath}`')
+                     
 
 if __name__ == '__main__':
     try:

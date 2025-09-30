@@ -16,3 +16,4 @@ joblib
 fastapi[standard]
 uvicorn
 addict
+yellowbrick

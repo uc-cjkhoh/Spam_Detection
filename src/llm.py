@@ -11,10 +11,10 @@ from .decorators import timer, error_log
   
 
 _model = SentenceTransformer(cfg.models.text_embedding.model_name, trust_remote_code=True)
-_tokenizer = AutoTokenizer.from_pretrained(cfg.models.text_embedding.model_name, trust_remote_code=True)
+embedding_tokenizer = AutoTokenizer.from_pretrained(cfg.models.text_embedding.model_name, trust_remote_code=True)
 
 _pipe = pipeline('text-classification', model=cfg.models.spam_detection.model_name)
-_tokenizer = AutoTokenizer.from_pretrained(cfg.models.spam_detection.model_name)
+detector_tokenizer = AutoTokenizer.from_pretrained(cfg.models.spam_detection.model_name)
 
 
 @error_log
@@ -25,13 +25,13 @@ def text_embedding(messages: pd.Series) -> np.ndarray:
     # Tokenize with truncation
     truncated_texts = []
     for msg in messages.to_list():
-        tokens = _tokenizer(
+        tokens = embedding_tokenizer(
             msg,
             max_length=8192,
             truncation=True
         )
         # Decode back to text (SentenceTransformer still needs text input)
-        truncated_texts.append(_tokenizer.decode(tokens["input_ids"], skip_special_tokens=True))
+        truncated_texts.append(embedding_tokenizer.decode(tokens["input_ids"], skip_special_tokens=True))
     
     return _model.encode(
         truncated_texts,  
@@ -49,14 +49,12 @@ def initial_labeling(data: pd.Series) -> pd.DataFrame:
             
             truncated_batch = []
             for text in batch:
-                tokens = _tokenizer(
+                tokens = detector_tokenizer(
                     text,
                     max_length=512,
                     truncation=True
                 )
-                truncated_batch.append(
-                    _tokenizer.decode(tokens["input_ids"], skip_special_tokens=True)
-                )
+                truncated_batch.append(detector_tokenizer.decode(tokens["input_ids"], skip_special_tokens=True))
                 
             results.extend(_pipe(truncated_batch))
         return results
@@ -67,7 +65,7 @@ def initial_labeling(data: pd.Series) -> pd.DataFrame:
     
     return pd.DataFrame({
         cfg.data.target_column: data,
-        cfg.data.target_column + '_label': label,
-        cfg.data.target_column + '_score': score
+        'spam_label': label,
+        'confidence_score': score
     })
         
