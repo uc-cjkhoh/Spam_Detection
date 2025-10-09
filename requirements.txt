@@ -17,3 +17,4 @@ fastapi[standard]
 uvicorn
 addict
 yellowbrick
+hnswlib

@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
-import joblib
-import shutil
+import joblib 
 import os  
 
 from datetime import datetime
@@ -10,7 +9,7 @@ from loader.config_loader import cfg
 from loader.logger_loader import logging
 from .decorators import timer, error_log  
      
-  
+     
 @error_log
 @timer
 def save_model(model, filename): 
@@ -19,25 +18,23 @@ def save_model(model, filename):
     
     joblib.dump(model, filepath)
     logging.info(f'Saved {filename} to {filepath}')
-
-
-@error_log
-@timer
-def fit_latest_data(model, data):
-    x = data[cfg.data.target_column]
-    y = data['spam_label']
-    model.partial_fit(x, y, classes=np.unique(y))
-
+ 
     
 @error_log
 @timer
-def update_model(model, data): 
+def update_model(model, x, y): 
+    """Update model with new data after saving old model
+
+    Args:
+        model (_type_): _description_
+        data (_type_): _description_
     """
-    Update model with new data after saving old model
-    """  
+    
     try:
         save_model(model, f'{type(model).__name__}-{datetime.now().strftime("%Y%m%d%H%M")}.joblib')
-        fit_latest_data(model, data)
+        
+        model.partial_fit(x, y)
+        
         save_model(model, f'{type(model).__name__}.joblib')
         
     except Exception as e:

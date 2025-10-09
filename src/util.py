@@ -1,6 +1,8 @@
 import os
 import pandas as pd
 import numpy as np
+import json
+from sqlalchemy import create_engine
 
 from .decorators import timer, error_log
 from loader.config_loader import cfg 
@@ -14,10 +16,9 @@ def create_required_folder_file():
     Create necessary directorlies and files
     """
     
-    # create directories
-    os.makedirs(cfg.active_learning.raw_message_folder, exist_ok=True)
-    os.makedirs(cfg.active_learning.message_vector_folder, exist_ok=True) 
-    os.makedirs(cfg.models.save_model_to.folder, exist_ok=True) 
+    # create directories 
+    os.makedirs(cfg.models.save_model_to.folder, exist_ok=True)
+    os.makedirs(cfg.hnsw.folder, exist_ok=True) 
     
     # create files
     if not os.path.isfile(cfg.module_log.process_log_path.files.label_record_file):
@@ -75,17 +76,28 @@ def is_finish_labelling(metadata):
 @error_log
 @timer
 def save_data(data: pd.DataFrame, vector: np.ndarray):
-    message_folder = cfg.active_learning.raw_message_folder
-    vector_folder = cfg.active_learning.message_vector_folder
+    # upload vector to mysql
+    engine = create_engine(
+        f'mysql+pymysql://{cfg.server.user}:{cfg.server.password}@{cfg.server.host}:{cfg.server.port}/sms_spam_cd'
+    )
     
-    message_filename = f'{len(os.listdir(message_folder))}.xlsx'
-    vector_filename = f'{len(os.listdir(vector_folder))}.npy'
+    # combine vector into dataframe
+    data['embedding'] = [json.dumps(v.tolist()) for v in vector]
     
-    message_destination = os.path.join(message_folder, message_filename)
-    vector_destination = os.path.join(vector_folder, vector_filename)
+    columns_to_ingest = [
+        'message_id',
+        'embedding',
+        'spam_label',
+        'confidence_score',
+        'cluster_label'
+    ]
     
-    data.to_excel(message_destination, index=False)
-    np.save(vector_destination, vector)
+    data[columns_to_ingest].to_sql(
+        name='ml_spam_result',
+        con=engine,
+        schema='sms_spam_cd',
+        if_exists='append',
+        index=False
+    )
     
-    logging.info(f'Message data saved to: {message_destination}')
-    logging.info(f'Veector data saved to: {vector_destination}')
+    engine.dispose() 

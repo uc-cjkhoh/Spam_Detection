@@ -10,7 +10,7 @@ This project provides a modular pipeline for detecting spam in SMS messages sour
 4. Run the following commands:
     ```CMD
     python -m venv venv
-    python install -r requirements.txt
+    pip install -r requirements.txt
     python main.py
     ```
     > On the first run, it will generate the initial set of label data using the Spam Detection LLM Model from [huggingface.com](http://huggingsface.com)
@@ -65,6 +65,7 @@ Spam_Detection/
 ├── requirements.txt
 ├── copilot-instructions.md
 ├── main.py
+├── application.py
 ├── eda_result.txt
 ├── configs/
 │   └── config.yaml 
@@ -93,6 +94,9 @@ Spam_Detection/
 
 - `main.py`  
   Main pipeline script: loads config, fetches data, runs preprocessing, EDA, feature engineering, normalization, and model training.
+
+- `application.py`  
+  FastAPI application for serving the model via REST API.
 
 - `eda_result.txt`  
   Output of exploratory data analysis (EDA) statistics.
@@ -132,6 +136,8 @@ See `requirements.txt` for dependencies, including:
 - `sentence-transformers`
 - `einops`
 - `jupyter`
+- `fastapi`
+- `uvicorn`
 
 ## Customization
 

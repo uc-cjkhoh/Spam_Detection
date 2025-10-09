@@ -63,9 +63,5 @@ def initial_labeling(data: pd.Series) -> pd.DataFrame:
     label = LabelEncoder().fit_transform([p['label'] for p in prediction])
     score = [p['score'] for p in prediction]
     
-    return pd.DataFrame({
-        cfg.data.target_column: data,
-        'spam_label': label,
-        'confidence_score': score
-    })
+    return label, score
         

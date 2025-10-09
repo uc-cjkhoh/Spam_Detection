@@ -1,15 +1,16 @@
 # === Standard Imports ===
-from datetime import datetime
 import pandas as pd
 import numpy as np
 import joblib
-import sys
 import os
+import faiss
+import json
+import ast
 
 from tqdm import tqdm
+from datetime import datetime
 from sklearn.linear_model import SGDClassifier
-from sklearn.cluster import KMeans
-from yellowbrick.cluster import KElbowVisualizer
+from sqlalchemy.engine import create_engine
 
 # === Project Imports ===
 from src.preprocess import text_normalize
@@ -17,7 +18,7 @@ from src.util import update_metadata, create_required_folder_file, first_time_la
 from src.decorators import timer, error_log 
 from src.llm import initial_labeling, text_embedding
 from src.model import update_model, save_model
-from src.clustering import get_clustering
+from src.clustering import direct_clustering, HNSW
 # from src.eda import basic_eda
 
 from loader.data_loader import Database
@@ -49,44 +50,44 @@ def get_subdata(cur, metadata):
 
 @error_log
 @timer
-def initialize_first_batch_data(message):
-    file_type = ['xlsx', 'npy']
+def initialize_first_batch_data(first_subdata: pd.DataFrame):
+    message = first_subdata[cfg.data.target_column]
+    vector = np.array(first_subdata[cfg.data.vector_column].tolist())
     
-    vector = text_embedding(message)
-    
-    initial_batch = initial_labeling(message)    
-     
-    spam_message_idx = np.where(initial_batch['spam_label'] == 1)[0]
+    spam_label, confidence_score = initial_labeling(message)     
+    spam_message_idx = np.where(spam_label == 1)[0]
     spam_vector = vector[spam_message_idx]
-    spam_cluster = get_clustering(spam_vector)
-      
-    initial_batch.loc[spam_message_idx, 'cluster_label'] = spam_cluster
+    spam_cluster = direct_clustering(spam_vector)
     
-    data_to_saved = [initial_batch, vector] 
-    data_folders = [cfg.active_learning.raw_message_folder, cfg.active_learning.message_vector_folder]
+    data = pd.DataFrame({
+        'message_id': first_subdata['id'],
+        'embedding': [json.dumps(v.tolist()) for v in vector], 
+        'spam_label': spam_label,
+        'confidence_score': confidence_score,
+        'cluster_label': None
+    })
+     
+    data.loc[spam_message_idx, 'cluster_label'] = spam_cluster
     
-    for i, value in enumerate(data_to_saved):    
-        filename = f'{len(os.listdir(data_folders[i]))}.{file_type[i]}' 
-        destination = os.path.join(data_folders[i], filename)
-
-        if file_type[i] == 'xlsx':
-            value.to_excel(destination, index=False)
-        else:
-            np.save(destination, value) 
+    engine = create_engine(
+        f'mysql+pymysql://{cfg.server.user}:{cfg.server.password}@{cfg.server.host}:{cfg.server.port}/sms_spam_cd'
+    )
+    
+    data.to_sql(
+        name='ml_spam_result',
+        con=engine,
+        schema='sms_spam_cd',
+        if_exists='append',
+        index=False
+    )
+    
+    engine.dispose()
 
 
 @error_log
 @timer
-def initialize_model(model):
-    data_folders = [cfg.active_learning.raw_message_folder, cfg.active_learning.message_vector_folder]
-    
-    message_filepath = os.path.join(data_folders[0], '0.xlsx')
-    spam_label = pd.read_excel(message_filepath)['spam_label']
-    
-    vector_filepath = os.path.join(data_folders[1], '0.npy')
-    vector = np.load(vector_filepath)
-    
-    model.fit(X=vector, y=spam_label)
+def initialize_model(model, x, y):
+    model.fit(x, y)
     
     filename = f'{type(model).__name__}.joblib'
     filepath = cfg.models.save_model_to.folder
@@ -105,9 +106,9 @@ def load_model():
     
 @error_log
 @timer
-def spam_detection(model, message):  
-    spam_label = model.predict(message)
-    confidence_score = model.predict_proba()
+def spam_detection(model, vector):  
+    spam_label = model.predict(vector)
+    confidence_score = model.predict_proba(vector)
     return spam_label, confidence_score.max(axis=1)
 
   
@@ -115,45 +116,85 @@ def spam_detection(model, message):
 @timer
 def main(db_cursor):
     create_required_folder_file()   
+    hnsw = HNSW(db_cursor)
     
     for metadata in tqdm(get_metadata(db_cursor).to_numpy()):
         if is_finish_labelling(metadata):
             logging.info(f'Skipping labelled metadata {("{}/" * len(cfg.active_learning.column_name)).strip("/").format(*metadata)}')
             continue
         
-        subdata = get_subdata(db_cursor, metadata) 
+        subdata = get_subdata(db_cursor, metadata)[:100]
         subdata = text_normalize(subdata.copy())  
+        
+        vector = text_embedding(subdata[cfg.data.target_column])
+        subdata[cfg.data.vector_column] = vector.tolist()
          
         if first_time_label():
-            initialize_first_batch_data(subdata[cfg.data.target_column])  
+            initialize_first_batch_data(subdata)  
+            
+            try:
+                hnsw.initial(vector)
+                faiss.write_index(hnsw, os.path.join(cfg.hnsw.folder, cfg.hnsw.filename))
+            except Exception as e:
+                logging.error(e, exc_info=True)
             
             update_metadata()
             logging.info('\nInitialization Successed ...')
             return 0
         else: 
             if len(os.listdir(cfg.models.save_model_to.folder)) == 0:
-                initialize_model(SGDClassifier(loss='modified_huber'))
+                logging.info('Initializing model ...')
+                db_cursor.execute(cfg.query_selection.vector_label)
+                
+                imported_data = db_cursor.fetchall()
+                
+                embeddings = []
+                labels = []
+                for row in tqdm(imported_data):
+                    embedding = row[0].decode('utf-8')
+                    label = row[1]
+                    
+                    embeddings.append(ast.literal_eval(embedding))
+                    labels.append(label)
+                    
+                embeddings = np.array(embeddings)
+                labels = np.array(labels)
+                
+                initialize_model(
+                    SGDClassifier(loss='modified_huber'),
+                    x=embeddings,
+                    y=labels
+                )
             
             # load latest model
-            latest_model = load_model()
+            logging.info('loading model ...')
+            spam_detector = load_model()
             
-            # start detecting spam and clusters
-            spam_label, confidence_score = spam_detection(latest_model, subdata[cfg.data.target_column])
-            
-            # update model with high confidence result
-            threshold=cfg.models.spam_detection.labelling_confidence_threshold
-            high_confidence_message = subdata[subdata['confidence_score'] > threshold]      
-            update_model(latest_model, high_confidence_message)   
-            
+            # detect spam 
+            logging.info('start spam detection ...')
+            spam_label, confidence_score = spam_detection(spam_detector, vector) 
             subdata['spam_label'] = spam_label
-            subdata['confidence_score'] = confidence_score
+            subdata['confidence_score'] = confidence_score 
             
-            # cluster spam and non-spam message separately
-            spam_message_idx = np.where(subdata['spam_label'] == 0)[0]
-            spam_vector = vector[spam_message_idx]
-            subdata.loc[spam_message_idx, 'cluster_label'] = get_clustering(spam_vector, cluster_limit=20)
-             
-            save_model(latest_model, filename=f'{type(latest_model).__name__}.joblib')
+            try:
+                # load hnsw
+                logging.info('building hnsw ...')
+                faiss.load_index(os.path.join(cfg.hnsw.folder, cfg.hnsw.filename))
+                
+                # clustering
+                spam_message_idx = np.where(subdata['spam_label'] == 1)[0]
+                spam_vector = vector[spam_message_idx]
+                subdata.loc[spam_message_idx, 'cluster_label'] = hnsw.cluster_and_save(spam_vector)
+            except Exception as e:
+                logging.error(e, exc_info=True)
+                
+            # update model with high confidence labelled data
+            high_confidence_data = subdata[subdata['confidence_score'] > cfg.models.spam_detection.labelling_confidence_threshold]
+            x = np.array(high_confidence_data[cfg.data.vector_column].tolist())
+            y = high_confidence_data['spam_label']
+            
+            update_model(spam_detector, x, y)
+            save_model(spam_detector, filename=f'{type(spam_detector).__name__}.joblib')
             save_data(subdata, vector)
             update_metadata()
         
@@ -174,4 +215,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt as e:
         logging.error(e, exc_info=True)
     finally:
-        logging.info('===== End of Execution =====')
+        cur.close()
+        connector.close()
+        logging.info(f'===== Module Ended At: {datetime.now()} =====')

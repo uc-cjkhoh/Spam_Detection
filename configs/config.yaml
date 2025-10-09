@@ -33,7 +33,8 @@ module_log:
 data:
   query: # the dataset import into python module
     'SELECT 
-      `payload`
+      id,
+      payload
     FROM 
       sms_spam_cd.data_tdr_spam_filter 
     WHERE
@@ -41,10 +42,23 @@ data:
       AND MONTH(current_datetime) = {}
       AND DAY(current_datetime) = {}
       AND HOUR(current_datetime) = {}'
-  column_name: ['message']
+  column_name: ['id', 'message']
   target_column: 'message' # specific the main column that listed in `column_name`
+  vector_column: 'vector'
   drop_null: false
   drop_duplicates: false
+
+
+hnsw:
+  folder: 'hnsw'
+  filename: 'hnsw_index.faiss'
+  query_by_indices: 
+    'SELECT 
+      spam_label
+    FROM
+      sms_spam_cd.ml_spam_result
+    WHERE 
+      id in {}'
 
 
 active_learning:
@@ -63,3 +77,7 @@ active_learning:
 
 hypothesis_testing:
     no_of_test: 3
+
+
+query_selection:
+  vector_label: "SELECT embedding, spam_label FROM sms_spam_cd.ml_spam_result"
