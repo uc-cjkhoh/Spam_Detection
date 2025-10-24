@@ -75,7 +75,7 @@ def is_finish_labelling(metadata):
 
 @error_log
 @timer
-def save_data(data: pd.DataFrame, vector: np.ndarray):
+def save_data(data: pd.DataFrame, vector: np.ndarray, is_spam, confidence_score):
     # upload vector to mysql
     engine = create_engine(
         f'mysql+pymysql://{cfg.server.user}:{cfg.server.password}@{cfg.server.host}:{cfg.server.port}/sms_spam_cd'
@@ -83,13 +83,14 @@ def save_data(data: pd.DataFrame, vector: np.ndarray):
     
     # combine vector into dataframe
     data['embedding'] = [json.dumps(v.tolist()) for v in vector]
+    data['spam_label'] = is_spam
+    data['confidence_score'] = confidence_score
     
     columns_to_ingest = [
-        'message_id',
+        'id',
         'embedding',
         'spam_label',
-        'confidence_score',
-        'cluster_label'
+        'confidence_score' 
     ]
     
     data[columns_to_ingest].to_sql(

@@ -17,13 +17,12 @@ def timer(func):
     @functools.wraps(func)
     def wrapper_decorator(*args, **kwargs):
         start_time = time.perf_counter()
-        
-        logging.info(f'Executing function `{func.__name__}` ...')
+         
         value = func(*args, **kwargs)
         end_time = time.perf_counter()
         
         run_time = end_time - start_time 
-        logging.info(f'Finish function `{func.__name__}` in {run_time:.3f} secs.')
+        logging.info(f'[Finished] `{func.__name__}` in {run_time:.3f} secs.')
         
         return value
         

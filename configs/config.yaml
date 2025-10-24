@@ -14,8 +14,8 @@ models: # define model to perform spam detection
   spam_detection:
     model_name: 'mrm8488/bert-tiny-finetuned-sms-spam-detection' 
     labelling_confidence_threshold: 0.90
-    batch_size: 32
-  
+    batch_size: 32 
+
   save_model_to:
     folder: 'models'
   
@@ -51,7 +51,8 @@ data:
 
 hnsw:
   folder: 'hnsw'
-  filename: 'hnsw_index.faiss'
+  spam_index: 'spam.faiss'
+  not_spam_index: 'not_spam.faiss'
   query_by_indices: 
     'SELECT 
       spam_label
@@ -79,5 +80,10 @@ hypothesis_testing:
     no_of_test: 3
 
 
-query_selection:
-  vector_label: "SELECT embedding, spam_label FROM sms_spam_cd.ml_spam_result"
+initialize_model:
+  query: "SELECT embedding, spam_label_update FROM sms_spam_cd.ml_spam_result"
+
+
+reclustering: 
+  select_query: "SELECT row_id, embedding FROM sms_spam_cd.ml_spam_result where spam_label = 1"
+  update_query: "UPDATE sms_spam_cd.ml_spam_result SET cluster_label = %s WHERE row_id = %s"

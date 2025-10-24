@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import joblib 
+import sys
 import os  
 
 from datetime import datetime
@@ -22,7 +23,7 @@ def save_model(model, filename):
     
 @error_log
 @timer
-def update_model(model, x, y): 
+def update_model(model, vector, is_spam, confidence_score): 
     """Update model with new data after saving old model
 
     Args:
@@ -32,8 +33,12 @@ def update_model(model, x, y):
     
     try:
         save_model(model, f'{type(model).__name__}-{datetime.now().strftime("%Y%m%d%H%M")}.joblib')
-        
-        model.partial_fit(x, y)
+          
+        high_confidence_idx = np.where(confidence_score >= 0.9)[0]
+        selected_vector = vector[high_confidence_idx].astype(np.float64)
+        selected_spam_label = is_spam[high_confidence_idx].astype(np.float64)
+         
+        model.partial_fit(selected_vector, selected_spam_label)
         
         save_model(model, f'{type(model).__name__}.joblib')
         
