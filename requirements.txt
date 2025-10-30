@@ -2,10 +2,8 @@ mysql-connector-python
 numpy
 pandas
 ftfy
-jupyter
-emoji
-pyyaml
-lingua-language-detector
+jupyter 
+pyyaml 
 scikit-learn
 sentence-transformers
 einops
@@ -18,3 +16,4 @@ uvicorn
 addict
 yellowbrick
 hnswlib
+custom_st

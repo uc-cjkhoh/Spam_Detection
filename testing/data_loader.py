@@ -1,6 +1,6 @@
 import mysql.connector
 
-from src.decorators import timer, error_log
+from loader.decorators import timer, error_log
 from loader.config_loader import cfg
  
 class Database:
@@ -15,8 +15,8 @@ class Database:
                 password = cfg.server.password
             )
     
-    @error_log 
-    @timer
-    def get_connector():
-        return Database()
+@error_log 
+@timer
+def get_connector():
+    return Database()
         

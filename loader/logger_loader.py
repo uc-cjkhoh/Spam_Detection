@@ -2,7 +2,7 @@ import os
 import logging
 import datetime
 
-from . config_loader import cfg
+from loader.config_loader import cfg
 
 os.makedirs(cfg.module_log.general_log_path.folder, exist_ok=True)
 os.makedirs(cfg.module_log.process_log_path.folder, exist_ok=True)

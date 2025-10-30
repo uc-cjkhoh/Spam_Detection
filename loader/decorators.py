@@ -1,8 +1,8 @@
 import functools 
 import time 
 
-from logger_loader import logging 
-  
+from loader.logger_loader import logging
+
 def timer(func):
     """
     Record function execution duration
