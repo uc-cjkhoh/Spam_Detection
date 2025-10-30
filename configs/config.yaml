@@ -81,7 +81,7 @@ hypothesis_testing:
 
 
 initialize_model:
-  query: "SELECT embedding, spam_label_update FROM sms_spam_cd.ml_spam_result"
+  query: "SELECT embedding, pam_label_update FROM sms_spam_cd.ml_spam_result"
 
 
 reclustering: 

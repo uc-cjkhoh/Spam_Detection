@@ -149,7 +149,7 @@ def start_active_learning():
             
             # if model not initialized
             if len(os.listdir(cfg.models.save_model_to.folder)) == 0:
-                model = SGDClassifier(loss='log_loss')
+                model = SGDClassifier(loss='log_loss', class_weight='balanced')
                 cur.execute(cfg.initialize_model.query) 
                 initialize_model(model, cur.fetchall())
             
