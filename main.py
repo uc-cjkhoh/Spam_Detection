@@ -14,7 +14,7 @@ from sklearn.linear_model import SGDClassifier
 from sqlalchemy.engine import create_engine
 
 from src.preprocess import text_normalize
-from src.util import update_metadata, create_required_folder_file, first_time_label, is_finish_labelling, save_data
+from testing.util import update_metadata, create_required_folder_file, first_time_label, is_finish_labelling, save_data
 from src.decorators import timer, error_log 
 from src.llm import initial_labeling, text_embedding
 from src.model import update_model, save_model

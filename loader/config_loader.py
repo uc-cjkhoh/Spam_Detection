@@ -1,12 +1,19 @@
 import os 
 import yaml
+import errno
+ 
+from addict import Dict 
 
-from addict import Dict
+class ConfigLoader:  
+    def __new__(cls):
+        _config_path = r'./configs/config.yaml'
+        if os.path.exists(_config_path):
+            try:
+                with open(_config_path, 'r') as f:
+                    return Dict(yaml.load(f, Loader=yaml.FullLoader))
+            except FileNotFoundError as e:
+                raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), _config_path)
+        
+def get_config():
+    return ConfigLoader()
 
-_config_path = './configs/config.yaml'
-
-if not os.path.exists(_config_path):
-    raise FileNotFoundError(f'Config file is not found in {_config_path}')
-
-with open(_config_path, 'r') as f:
-    cfg = Dict(yaml.load(f, Loader=yaml.FullLoader))

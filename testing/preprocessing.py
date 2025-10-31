@@ -2,10 +2,7 @@ import pandas as pd
 import ftfy
 import re
 import emoji  
-
-from loader.config_loader import cfg
-from loader.decorators import timer, error_log
-
+ 
  
 class PreprocessPipeline:
     def __init__(self):
@@ -20,9 +17,7 @@ class PreprocessPipeline:
             'only_char': r'[a-zA-Z]+',
             'only_num': r'[0-9]+'
         }
-    
-    @timer
-    @error_log
+     
     def text_normalize(self, message: pd.Series) -> pd.Series:
         """
         Normalize message structure

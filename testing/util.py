@@ -2,21 +2,19 @@ import os
 import pandas as pd
 import numpy as np
 import json
+
 from sqlalchemy import create_engine
-
-from .decorators import timer, error_log
-from loader.config_loader import cfg 
-from loader.logger_loader import logging
-            
-
-@error_log
-@timer
+from loader.config_loader import cfg  
+           
+           
 def create_required_folder_file():
     """
     Create necessary directorlies and files
     """
     
     # create directories 
+    os.makedirs(cfg.module_log.general_log_path.folder, exist_ok=True)
+    os.makedirs(cfg.module_log.process_log_path.folder, exist_ok=True)
     os.makedirs(cfg.models.save_model_to.folder, exist_ok=True)
     os.makedirs(cfg.hnsw.folder, exist_ok=True) 
     
@@ -30,9 +28,7 @@ def create_required_folder_file():
             cfg.module_log.process_log_path.files.unlabel_record_file, index=False
         ) 
         
-    
-@error_log
-@timer
+     
 def update_metadata(all_metadata: pd.DataFrame=None):
     """
     Update training process by checking if a subdata has been labelled.
@@ -59,22 +55,16 @@ def update_metadata(all_metadata: pd.DataFrame=None):
         updated_finished.to_excel(finished_metadata, index=False)
         updated_unfinished.to_excel(unfinished_metadata, index=False)
  
-
-@error_log
-@timer
+ 
 def first_time_label():
     return len(pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)) == 0
 
-
-@error_log
-@timer
+ 
 def is_finish_labelling(metadata):
     finished_metadatas = pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)
     return len(finished_metadatas) != 0 and np.any(np.all(finished_metadatas.to_numpy() == metadata, axis=1))
 
-
-@error_log
-@timer
+ 
 def save_data(data: pd.DataFrame, vector: np.ndarray, is_spam, confidence_score):
     # upload vector to mysql
     engine = create_engine(

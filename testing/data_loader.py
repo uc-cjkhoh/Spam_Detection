@@ -1,22 +1,29 @@
+import pandas as pd
 import mysql.connector
-
-from loader.decorators import timer, error_log
-from loader.config_loader import cfg
+import logging
+ 
  
 class Database:
-    _instance = None
-    
-    def __new__(cls):
-        if cls._instance is None:
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.connector = self.initialize_db_connection()
+        self.cur = self.connector.cursor()
+     
+    def initialize_db_connection(self):
+        try:     
             return mysql.connector.connect(
-                host = cfg.server.host,
-                port = cfg.server.port,
-                user = cfg.server.user,
-                password = cfg.server.password
+                host = self.cfg.server.host,
+                port = self.cfg.server.port,
+                user = self.cfg.server.user,
+                password = self.cfg.server.password
             )
-    
-@error_log 
-@timer
-def get_connector():
-    return Database()
+        except Exception as e:
+            raise Exception(e)
         
+    def retrieve_by_query(self, query) -> pd.DataFrame:
+        self.cur.execute(query)
+        return pd.DataFrame(self.cur.fetchall())
+         
+    def close_connection(self):
+        self.cur.close()
+        self.connector.close()

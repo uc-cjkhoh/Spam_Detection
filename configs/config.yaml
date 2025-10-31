@@ -42,7 +42,7 @@ data:
       AND MONTH(current_datetime) = {}
       AND DAY(current_datetime) = {}
       AND HOUR(current_datetime) = {}'
-  column_name: ['id', 'message']
+  column_name: ['id', 'payload']
   target_column: 'message' # specific the main column that listed in `column_name`
   vector_column: 'vector'
 

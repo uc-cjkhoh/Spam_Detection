@@ -13,9 +13,7 @@ from src.decorators import error_log, timer
 from loader.config_loader import cfg
 from loader.data_loader import get_connector
 
-
-@error_log
-@timer
+ 
 def direct_clustering(vectors):
     """
     Directly cluster vectors parameter
@@ -35,9 +33,7 @@ def direct_clustering(vectors):
     cluster_label = hdbscan.fit_predict(reduced_vectors)
     return cluster_label
 
-
-@error_log
-@timer
+ 
 def recluster_from_database(): 
     con = get_connector()
     cur = con.cursor()
