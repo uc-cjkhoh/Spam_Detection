@@ -2,6 +2,9 @@ import pandas as pd
 import ftfy
 import re
 import emoji  
+
+from prefect import task 
+from prefect.cache_policies import NO_CACHE
  
  
 class PreprocessPipeline:
@@ -18,6 +21,7 @@ class PreprocessPipeline:
             'only_num': r'[0-9]+'
         }
      
+    @task(cache_policy=NO_CACHE)
     def text_normalize(self, message: pd.Series) -> pd.Series:
         """
         Normalize message structure

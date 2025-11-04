@@ -4,7 +4,7 @@ import numpy as np
 import json
 
 from sqlalchemy import create_engine
-from loader.config_loader import cfg  
+from testing.config_loader.config_loader import get_config
            
            
 def create_required_folder_file():
@@ -12,19 +12,23 @@ def create_required_folder_file():
     Create necessary directorlies and files
     """
     
+    cfg = get_config()
+    
     # create directories 
     os.makedirs(cfg.module_log.general_log_path.folder, exist_ok=True)
     os.makedirs(cfg.module_log.process_log_path.folder, exist_ok=True)
     os.makedirs(cfg.models.save_model_to.folder, exist_ok=True)
     os.makedirs(cfg.hnsw.folder, exist_ok=True) 
+    os.makedirs(cfg.vectorstore.default_location, exist_ok=True)
     
     # create files
     if not os.path.isfile(cfg.module_log.process_log_path.files.label_record_file):
-        pd.DataFrame(columns=cfg.active_learning.column_name).to_excel(
+        pd.DataFrame(columns=cfg.metadata.column_name).to_excel(
             cfg.module_log.process_log_path.files.label_record_file, index=False
         )
+        
     if not os.path.isfile(cfg.module_log.process_log_path.files.unlabel_record_file):
-        pd.DataFrame(columns=cfg.active_learning.column_name).to_excel(
+        pd.DataFrame(columns=cfg.metadata.column_name).to_excel(
             cfg.module_log.process_log_path.files.unlabel_record_file, index=False
         ) 
         
@@ -39,6 +43,8 @@ def update_metadata(all_metadata: pd.DataFrame=None):
     Returns:
         pd.DataFrame: pandas dataframe
     """
+    
+    cfg = get_config()
     
     finished_metadata = cfg.module_log.process_log_path.files.label_record_file
     unfinished_metadata = cfg.module_log.process_log_path.files.unlabel_record_file
@@ -57,15 +63,23 @@ def update_metadata(all_metadata: pd.DataFrame=None):
  
  
 def first_time_label():
+    cfg = get_config()
     return len(pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)) == 0
 
+
+def check_exist_model():
+    return False
+    
  
 def is_finish_labelling(metadata):
+    cfg = get_config()
     finished_metadatas = pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)
     return len(finished_metadatas) != 0 and np.any(np.all(finished_metadatas.to_numpy() == metadata, axis=1))
 
  
 def save_data(data: pd.DataFrame, vector: np.ndarray, is_spam, confidence_score):
+    cfg = get_config()
+    
     # upload vector to mysql
     engine = create_engine(
         f'mysql+pymysql://{cfg.server.user}:{cfg.server.password}@{cfg.server.host}:{cfg.server.port}/sms_spam_cd'

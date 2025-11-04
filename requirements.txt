@@ -17,3 +17,5 @@ addict
 yellowbrick
 hnswlib
 custom_st
+mlflow
+prefect

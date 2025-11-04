@@ -1,6 +1,9 @@
 import pandas as pd
 import mysql.connector
 import logging
+
+from prefect import task
+from prefect.cache_policies import NO_CACHE
  
  
 class Database:
@@ -8,7 +11,8 @@ class Database:
         self.cfg = cfg
         self.connector = self.initialize_db_connection()
         self.cur = self.connector.cursor()
-     
+
+    @task(cache_policy=NO_CACHE)
     def initialize_db_connection(self):
         try:     
             return mysql.connector.connect(
@@ -20,6 +24,7 @@ class Database:
         except Exception as e:
             raise Exception(e)
         
+    @task(cache_policy=NO_CACHE)
     def retrieve_by_query(self, query) -> pd.DataFrame:
         self.cur.execute(query)
         return pd.DataFrame(self.cur.fetchall())

@@ -6,9 +6,7 @@ server: # server configuration
   password: 'unified'
 
 
-module_log:
-  general_log_path: 
-    folder: 'logs/general'
+module_log: 
   process_log_path: 
     folder: 'logs/process'
     files:
@@ -28,10 +26,10 @@ models: # define model to perform spam detection
 
   save_model_to:
     folder: 'models'
-  
  
+
 data:
-  query: # the dataset import into python module
+  query: 
     'SELECT 
       id,
       payload
@@ -43,25 +41,12 @@ data:
       AND DAY(current_datetime) = {}
       AND HOUR(current_datetime) = {}'
   column_name: ['id', 'payload']
-  target_column: 'message' # specific the main column that listed in `column_name`
+  target_column: 'payload' # specific the main column that listed in `column_name`
   vector_column: 'vector'
 
 
-hnsw:
-  folder: 'hnsw'
-  spam_index: 'spam.faiss'
-  not_spam_index: 'not_spam.faiss'
-  query_by_indices: 
-    'SELECT 
-      spam_label
-    FROM
-      sms_spam_cd.ml_spam_result
-    WHERE 
-      id in {}'
-
-
-active_learning:
-  subdata_metadata_query: # define subdata group, active learning will loop through group by group
+metadata:
+  query: # define subdata group, active learning will loop through group by group
     'SELECT DISTINCT
       YEAR(current_datetime), 
       MONTH(current_datetime), 
@@ -74,14 +59,6 @@ active_learning:
   message_vector_folder: 'data/vector'  
 
 
-hypothesis_testing:
-    no_of_test: 3
-
-
-initialize_model:
-  query: "SELECT embedding, pam_label_update FROM sms_spam_cd.ml_spam_result"
-
-
-reclustering: 
-  select_query: "SELECT row_id, embedding FROM sms_spam_cd.ml_spam_result where spam_label = 1"
-  update_query: "UPDATE sms_spam_cd.ml_spam_result SET cluster_label = %s WHERE row_id = %s"
+vectorstore:
+  directory: '../vector'
+  filename: 'sms_embeddings.bin'
