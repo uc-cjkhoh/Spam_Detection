@@ -60,5 +60,5 @@ metadata:
 
 
 vectorstore:
-  directory: '../vector'
-  filename: 'sms_embeddings.bin'
+  directory: './data/vector'
+  filename: 'sms_embeddings.faiss'

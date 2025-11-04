@@ -19,3 +19,7 @@ hnswlib
 custom_st
 mlflow
 prefect
+langchain-community
+langchain
+langchain-core
+langchain-openai

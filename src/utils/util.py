@@ -3,23 +3,16 @@ import pandas as pd
 import numpy as np
 import json
 
-from sqlalchemy import create_engine
-from testing.config_loader.config_loader import get_config
+from sqlalchemy import create_engine    
            
-           
-def create_required_folder_file():
+def create_required_folder_file(cfg):
     """
     Create necessary directorlies and files
     """
     
-    cfg = get_config()
-    
     # create directories 
-    os.makedirs(cfg.module_log.general_log_path.folder, exist_ok=True)
     os.makedirs(cfg.module_log.process_log_path.folder, exist_ok=True)
-    os.makedirs(cfg.models.save_model_to.folder, exist_ok=True)
-    os.makedirs(cfg.hnsw.folder, exist_ok=True) 
-    os.makedirs(cfg.vectorstore.default_location, exist_ok=True)
+    os.makedirs(cfg.vectorstore.directory, exist_ok=True)
     
     # create files
     if not os.path.isfile(cfg.module_log.process_log_path.files.label_record_file):
@@ -33,7 +26,7 @@ def create_required_folder_file():
         ) 
         
      
-def update_metadata(all_metadata: pd.DataFrame=None):
+def update_metadata(cfg, all_metadata: pd.DataFrame=None):
     """
     Update training process by checking if a subdata has been labelled.
 
@@ -43,8 +36,7 @@ def update_metadata(all_metadata: pd.DataFrame=None):
     Returns:
         pd.DataFrame: pandas dataframe
     """
-    
-    cfg = get_config()
+     
     
     finished_metadata = cfg.module_log.process_log_path.files.label_record_file
     unfinished_metadata = cfg.module_log.process_log_path.files.unlabel_record_file
@@ -62,8 +54,7 @@ def update_metadata(all_metadata: pd.DataFrame=None):
         updated_unfinished.to_excel(unfinished_metadata, index=False)
  
  
-def first_time_label():
-    cfg = get_config()
+def first_time_label(cfg): 
     return len(pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)) == 0
 
 
@@ -71,15 +62,12 @@ def check_exist_model():
     return False
     
  
-def is_finish_labelling(metadata):
-    cfg = get_config()
+def is_finish_labelling(cfg, metadata): 
     finished_metadatas = pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)
     return len(finished_metadatas) != 0 and np.any(np.all(finished_metadatas.to_numpy() == metadata, axis=1))
 
  
-def save_data(data: pd.DataFrame, vector: np.ndarray, is_spam, confidence_score):
-    cfg = get_config()
-    
+def save_data(cfg, data: pd.DataFrame, vector: np.ndarray, is_spam, confidence_score):  
     # upload vector to mysql
     engine = create_engine(
         f'mysql+pymysql://{cfg.server.user}:{cfg.server.password}@{cfg.server.host}:{cfg.server.port}/sms_spam_cd'

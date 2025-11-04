@@ -3,32 +3,43 @@ import faiss
 import gc 
 import os
 
-from testing.config_loader.config_loader import get_config
+from prefect import task
+from prefect.cache_policies import NO_CACHE
 
+  
 class VectorStore:
-    def __init__(self): 
-        self.vector_config = get_config().vectorstore 
-        self.filepath = os.path.join(self.vector_confg.directory, self.vector_config.filename)
-        self.vector = None
+    def __init__(self, config): 
+        self.config = config 
+        self.filepath = os.path.join(self.config.directory, self.config.filename)
+        self.index = self.load_any()
      
+    def load_any(self):
+        if os.path.exists(self.filepath):
+            self.index = faiss.read_index(self.filepath)
+        else:
+            self.index = None
+
+    @task(cache_policy=NO_CACHE)    
     def write(self, embeddings: np.ndarray):
-        if self.vector is None:
-            self.vector = faiss.IndexFlatL2(embeddings.shape[1])
-            
-        self.vector.add(embeddings) 
+        if self.index is None:
+            self.index = faiss.IndexFlatL2(embeddings.shape[1]) 
+        self.index.add(embeddings)
         
-    def save(self):
-        faiss.write_index(self.vector, self.filepath)
-     
     def similarity_search(self, embedding: np.ndarray, n: int = 5):
-        return self.vector.search(embedding, n)
+        return self.index.search(embedding, n)
      
     def get_vectors(self):
-        return self.vector
+        return self.index
     
     def get_vectorstore_filepath(self):
         return self.filepath
     
+    def save(self):
+        try:
+            faiss.write_index(self.index, self.filepath)
+        except Exception as e:
+            raise Exception(e)
+     
     def close(self):
-        del self.vector
+        del self.index
         gc.collect()

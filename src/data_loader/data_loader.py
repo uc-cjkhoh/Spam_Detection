@@ -25,9 +25,15 @@ class Database:
             raise Exception(e)
         
     @task(cache_policy=NO_CACHE)
-    def retrieve_by_query(self, query) -> pd.DataFrame:
+    def retrieve_by_query(self, query, columns: list = None) -> pd.DataFrame:
         self.cur.execute(query)
-        return pd.DataFrame(self.cur.fetchall())
+        data =  pd.DataFrame(self.cur.fetchall())
+        
+        if columns is not None and len(columns) == data.shape[-1]:
+            data.columns = columns
+
+        return data
+
          
     def close_connection(self):
         self.cur.close()

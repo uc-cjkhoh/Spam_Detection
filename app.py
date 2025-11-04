@@ -1,96 +1,90 @@
 import pandas as pd
 import numpy as np
-import os
-import mlflow 
+import faiss
+import os 
 
-from mlflow.models import infer_signature
 from prefect import flow, task
 from sklearn.linear_model import SGDClassifier
+ 
+from langchain_huggingface import HuggingFaceEmbeddings 
+from langchain_community.vectorstores import FAISS
 
-# ... require unit testing before import custom libraries
-
-from testing.utils.util import check_exist_model
-from testing.config_loader.config_loader import get_config
-from testing.data_loader.data_loader import Database
-from testing.data_loader.preprocessing import PreprocessPipeline
-from testing.data_loader.embedding import EmbeddingPipeline
-from testing.vector_database.vectorstore import VectorStore
-from testing.model.ml_pipeline import MLPipeline
+from src.config_folder.config_loader import get_config
+from src.data_loader.data_loader import Database
+from src.data_loader.preprocessing import text_normalize
+from src.utils.util import create_required_folder_file
 
 
 @task
-def run_query(config, query, columns=None) -> pd.DataFrame:
-    db = Database(config)  
-    data = db.retrieve_by_query(query)
-    
-    if columns is not None:
-        data.columns = columns
-    
-    db.close_connection()
-    return data
+def setup_environment(config: dict): 
+    database = Database(config)
+    embedding_model = HuggingFaceEmbeddings(
+        model_name=config.models.text_embedding.model_name,
+        model_kwargs={"trust_remote_code": True}
+    )
+  
+    return database, embedding_model 
 
 @task
-def preprocess(data: pd.Series) -> pd.Series: 
-    preprocess = PreprocessPipeline()
-    return preprocess.text_normalize(data)
+def initialize_vectorstore(config: dict):
+    default_file_location = os.path.join(config.vectorstore.directory, config.vectorstore.filename)
+    if os.path.exists(default_file_location):
+        return FAISS.load_local(default_file_location)
+    else:
+        return None
 
-@task
-def text_embedding(model_name: str, data: pd.Series) -> np.ndarray:
-    embeder = EmbeddingPipeline(model_name=model_name)
-    return embeder.embed_message(data)
-
-@task
-def setup_vectorstore():
-    vectorstore = VectorStore()
-    if vectorstore.get_vectors() is None and os.listdir(vectorstore.get_vectorstore_filepath()) > 0:
-        vectorstore.load_exist_vectorstore()
-        
-    return vectorstore
-
-@task
-def setup_model(config):
-    has_exist_model = (os.listdir(config.models.save_model_to.folder) > 0)
-    if has_exist_model:
-        
-    
 
 @flow(name='SMS_SPAM_DETECTION')
 def main():
     try:
-        # setup
+        # get environment config
         config = get_config() 
         
-        vectorstore = VectorStore()
+        # create required directory
+        create_required_folder_file(config)
         
-        model = setup_model(config)
+        # setup environment
+        mysql, embedding_model = setup_environment(config)
         
-        # main process start here
+        # setup vectorstore
+        loaded_index = initialize_vectorstore(config)
         
-        metadata = run_query(config, config.metadata.query)
-         
-        # ... require data quality check
+        # get subdata's metadata
+        metadata = mysql.retrieve_by_query(config.metadata.query, columns=config.metadata.column_name)
         
-        for i in range(metadata):
+        # start active learning process
+        for i in range(len(metadata)):
+            # 1. edit subdata's query
             data_query = config.data.query.format(*metadata.iloc[i])
             
-            data = run_query(config, data_query, columns=config.data.column_name)
+            # 2. execute query & get subdata
+            data = mysql.retrieve_by_query(data_query, columns=config.data.column_name)[:100]
             
-            data[config.data.target_column] = preprocess(data[config.data.target_column])
-        
-            embeddings = text_embedding(config.models.text_embedding.model_name, data[config.data.target_column])
+            # 3. perform preprocessing
+            data = text_normalize(data, target_column=config.data.target_column)
+          
+            # 4. save texts into vector database
+            if loaded_index is not None:
+                loaded_index.add_texts(
+                    texts=data[config.data.target_column].tolist(), 
+                    metadatas=[metadata.iloc[i].to_list()]
+                )
+            else:
+                loaded_index = FAISS.from_texts(
+                    texts=data[config.data.target_column].tolist(), 
+                    embedding=embedding_model,
+                    metadatas=[metadata.iloc[i].to_list()]
+                )
             
-            vectorstore.write(embeddings)
+            similar_text = loaded_index.similarity_search(query='you win a prize', k=5)
+            print(similar_text)
             
-            with mlflow.start_run():   
-                pass
-        
-        
-    except Exception as e:
-        raise Exception(e)    
-    finally:
+            break
+                     
+        mysql.close_connection()
         vectorstore.close()
+    except Exception as e:
+        raise Exception(e) 
     
-    
-if __name__ == '__main__':
-    mlflow.set_tracking_url(uri='http://127.0.0.1:4201')
+if __name__ == '__main__': 
     main()
