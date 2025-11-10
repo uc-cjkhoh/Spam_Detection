@@ -5,3 +5,5 @@ src/__pycache__/
 loader/__pycache__/
 .vscode/
 __pycache__/
+prefect/
+mlruns/

@@ -32,6 +32,7 @@ data:
   query: 
     'SELECT 
       id,
+      current_datetime,
       payload
     FROM 
       sms_spam_cd.data_tdr_spam_filter 
@@ -39,10 +40,11 @@ data:
       YEAR(current_datetime) = {}
       AND MONTH(current_datetime) = {}
       AND DAY(current_datetime) = {}
-      AND HOUR(current_datetime) = {}'
-  column_name: ['id', 'payload']
+      AND HOUR(current_datetime) = {}
+    LIMIT 100'
+  column_name: ['id', 'datetime', 'payload']
   target_column: 'payload' # specific the main column that listed in `column_name`
-  vector_column: 'vector'
+  metadata_column: ['id', 'datetime']
 
 
 metadata:
@@ -54,11 +56,9 @@ metadata:
       HOUR(current_datetime)
     FROM 
       sms_spam_cd.data_tdr_spam_filter'
-  column_name: ['year', 'month', 'day', 'hour']
-  raw_message_folder: 'data/message' 
-  message_vector_folder: 'data/vector'  
+  column_name: ['year', 'month', 'day', 'hour'] 
 
 
 vectorstore:
   directory: './data/vector'
-  filename: 'sms_embeddings.faiss'
+  filename: 'sms_embeddings'

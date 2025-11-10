@@ -1,5 +1,6 @@
 import pandas as pd
 import mysql.connector
+import numpy as np
 import logging
 
 from prefect import task
@@ -23,18 +24,28 @@ class Database:
             )
         except Exception as e:
             raise Exception(e)
-        
+    
     @task(cache_policy=NO_CACHE)
-    def retrieve_by_query(self, query, columns: list = None) -> pd.DataFrame:
+    def get_population_metadata(self, query, columns: list) -> pd.DataFrame:
         self.cur.execute(query)
-        data =  pd.DataFrame(self.cur.fetchall())
+        data =  pd.DataFrame(self.cur.fetchall(), columns=columns)
+        return data 
+
+    @task(cache_policy=NO_CACHE)
+    def retrieve_subdata_by_query(self, query, columns: list) -> pd.DataFrame:
+        self.cur.execute(query)
+        data = pd.DataFrame(self.cur.fetchall(), columns=columns)
         
-        if columns is not None and len(columns) == data.shape[-1]:
-            data.columns = columns
+        metadata_column = self.cfg.data.metadata_column
+        metadata = data[metadata_column].to_dict(orient='records')
 
-        return data
+        return data, metadata
 
-         
+    def get_cursor(self):
+        return self.cur
+     
     def close_connection(self):
         self.cur.close()
         self.connector.close()
+        
+        

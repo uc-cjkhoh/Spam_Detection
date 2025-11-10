@@ -18,8 +18,7 @@ class Regex:
     only_char = r'[a-zA-Z]+'
     only_num = r'[0-9]+'
         
-     
-@task(cache_policy=NO_CACHE)
+      
 def text_normalize(data: pd.DataFrame, target_column: str) -> pd.DataFrame:
     """
     Normalize message structure
@@ -33,7 +32,7 @@ def text_normalize(data: pd.DataFrame, target_column: str) -> pd.DataFrame:
     
     try:
         message = data[target_column]
-        message = message.apply(ftfy.fix_text)
+        # message = message.apply(ftfy.fix_text)
         message = message.apply(str.strip)
         # message = message.apply(str.lower)
         message = message.apply(lambda x: re.sub(r'\s+', ' ', x))

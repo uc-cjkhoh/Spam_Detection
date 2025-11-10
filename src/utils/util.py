@@ -1,10 +1,22 @@
 import os
 import pandas as pd
 import numpy as np
+import joblib
+import mlflow
 import json
 
-from sqlalchemy import create_engine    
-           
+from prefect import task
+from prefect.cache_policies import NO_CACHE 
+from sklearn.linear_model import SGDClassifier
+
+#custom libraries
+from src.data_loader.data_loader import Database  
+from src.model.model_training import MLPipeline
+from langchain_huggingface import HuggingFaceEmbeddings
+from src.vector_database.vectorstore import VectorStore
+
+    
+@task(cahce_policies=NO_CACHE)      
 def create_required_folder_file(cfg):
     """
     Create necessary directorlies and files
@@ -25,72 +37,46 @@ def create_required_folder_file(cfg):
             cfg.module_log.process_log_path.files.unlabel_record_file, index=False
         ) 
         
-     
-def update_metadata(cfg, all_metadata: pd.DataFrame=None):
-    """
-    Update training process by checking if a subdata has been labelled.
-
-    Args:
-        metadata (pd.DataFrame): all subdata grouping metadata
-
-    Returns:
-        pd.DataFrame: pandas dataframe
-    """
-     
-    
-    finished_metadata = cfg.module_log.process_log_path.files.label_record_file
-    unfinished_metadata = cfg.module_log.process_log_path.files.unlabel_record_file
-    
-    if all_metadata is not None:
-        all_metadata.to_excel(unfinished_metadata, index=False)
-    else:
-        finished = pd.read_excel(finished_metadata)
-        unfinished = pd.read_excel(unfinished_metadata)
-        
-        updated_finished = pd.concat([finished, unfinished.iloc[0].to_frame().T])
-        updated_unfinished = unfinished.drop(index=0)
-        
-        updated_finished.to_excel(finished_metadata, index=False)
-        updated_unfinished.to_excel(unfinished_metadata, index=False)
- 
- 
-def first_time_label(cfg): 
-    return len(pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)) == 0
-
-
-def check_exist_model():
-    return False
-    
- 
-def is_finish_labelling(cfg, metadata): 
-    finished_metadatas = pd.read_excel(cfg.module_log.process_log_path.files.label_record_file)
-    return len(finished_metadatas) != 0 and np.any(np.all(finished_metadatas.to_numpy() == metadata, axis=1))
-
- 
-def save_data(cfg, data: pd.DataFrame, vector: np.ndarray, is_spam, confidence_score):  
-    # upload vector to mysql
-    engine = create_engine(
-        f'mysql+pymysql://{cfg.server.user}:{cfg.server.password}@{cfg.server.host}:{cfg.server.port}/sms_spam_cd'
+   
+@task
+def setup_environment(config: dict, args): 
+    database = Database(config)
+    embedding_model = HuggingFaceEmbeddings(
+        model_name=config.models.text_embedding.model_name,
+        model_kwargs={'trust_remote_code': True},
+        encode_kwargs={
+            'normalize_embeddings': True,
+            'max_length': 1024,
+            'batch_size': 4
+        },
+        show_progress=True
     )
+    vectorstore = VectorStore(config.vectorstore)
     
-    # combine vector into dataframe
-    data['embedding'] = [json.dumps(v.tolist()) for v in vector]
-    data['spam_label'] = is_spam
-    data['confidence_score'] = confidence_score
+    ml_model = identify_model_to_train(args)
+    ml_pipeline = MLPipeline(ml_model)
     
-    columns_to_ingest = [
-        'id',
-        'embedding',
-        'spam_label',
-        'confidence_score' 
-    ]
+    return database, embedding_model, vectorstore, ml_pipeline
+  
+
+@task
+def identify_model_to_train(args):
+    model = SGDClassifier(loss='log_loss', class_weight='balanced') 
     
-    data[columns_to_ingest].to_sql(
-        name='ml_spam_result',
-        con=engine,
-        schema='sms_spam_cd',
-        if_exists='append',
-        index=False
-    )
-    
-    engine.dispose() 
+    if args.model_path is not None:
+        model = joblib.load(args.model_path)
+    else: 
+        runs = mlflow.search_runs(
+            order_by=['attributes.start_time DESC'],
+            experiment_names=[args.experiment],
+            max_results=1
+        )
+        
+        if len(runs) > 0:
+            latest_run_id = runs[0].info.run_id
+            model_uri = f"run:/{latest_run_id}/model"
+            model = mlflow.pyfunc.load_model(model_uri)
+            
+    return model
+
+ 
