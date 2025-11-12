@@ -1,161 +1,125 @@
-# Spam Detection from MySQL SMS Data
+# SMS Spam Detection
 
-This project provides a modular pipeline for detecting spam in SMS messages sourced directly from a MySQL database. It covers data loading, preprocessing, feature engineering, exploratory data analysis, and is designed for extensibility with model training and evaluation.
+This repository contains an incremental SMS spam-detection pipeline that uses embeddings, a vectorstore, and an online learning model. The main entrypoint is `app.py` which orchestrates environment setup, data retrieval, embedding, vector storage, prediction, and incremental training.
 
-## How to Use
+## What this project does
 
-1. **Download the module from GitHub**
-2. **Ensure Python 3.13 is installed**
-3. Open **CMD** and navigate to the project folder
-4. Run the following commands:
-    ```CMD
-    python -m venv venv
-    pip install -r requirements.txt
-    python main.py
-    ```
-    > On the first run, it will generate the initial set of label data using the Spam Detection LLM Model from [huggingface.com](http://huggingsface.com)
-    
-    If getting error OSError: [Errno 28] No space left on device: '/home/unified/.cache/huggingface', please set the path for huggingface module
-    ```CMD
-    export HF_HOME='[YOUR_PREFER_PATH]'
-    ```
+- Connects to a data source (configured in `configs/config.yaml`) and retrieves population metadata and per-population data.
+- Normalizes and preprocesses text messages.
+- Generates embeddings using a Hugging Face embeddings model (via `langchain_huggingface`).
+- Writes message vectors and metadata into a vectorstore.
+- Loads a supervised ML model (configured in `src/model`) and predicts labels on new embeddings.
+- Uses prediction confidence to select high-confidence pseudo-labels for incremental training of the model.
+- Tracks experiments and models with MLflow.
 
-5. **Manually verify** the generated label data
-6. Run:
-    ```CMD
-    python main.py
-    ```
-    to continue the learning process
-7. To test the trained model, run:
-    ```CMD
-    uvicorn application:app --host 0.0.0.0 --port 8000
-    ```
-    This will start a local FastAPI server
-8. Open **http://localhost:8000/docs** or **http://your_device_ip:8000/docs** in your browser
-9. Click the **`Try It Out`** buttons
-10. Test the model by entering random messages 
+## Key files and structure
 
-## Workflow Overview
-![Active Learning Process](diagrams/Active%20Learning%20Process.jpg)
+- `app.py` — the orchestrator flow.
+- `configs/config.yaml` — main configuration (DB credentials, vectorstore config, models, queries, thresholds).
+- `src/` — project source code:
+  - `src/data_loader/` — data access, embedding helpers, preprocessing.
+  - `src/vector_database/vectorstore.py` — vectorstore writer/reader.
+  - `src/model/` — model training, loading and prediction helpers.
+  - `src/config_folder/config_loader.py` — configuration loader.
+  - `src/utils/util.py` — utility helpers for folders and metadata.
 
-1. **Configuration**  
-   - Set up database and model parameters in `configs/config.yaml`.
+## Minimal contract (what `app.py` expects and produces)
 
-2. **Data Loading**  
-   - `src/data_loader.py`: Connects to MySQL and fetches SMS data.
+- Inputs
+  - `configs/config.yaml` — DB connection info, SQL queries, target column names, model params, vectorstore config, and thresholds.
+  - Database access reachable from the environment (credentials in config file).
+  - Network access for downloading Hugging Face models if not cached locally.
+- Outputs
+  - Vectorstore content (written by `VectorStore.write_to_vectorstore`).
+  - MLflow runs and artifacts (by default stored in `./mlruns` unless overridden).
+  - Updated metadata stored/updated by `update_metadata` helper(s).
 
-3. **Preprocessing & Feature Engineering**  
-   - `src/preprocess.py`: Cleans and augments data with features.
+## Dependencies
 
-4. **Exploratory Data Analysis**  
-   - `src/eda.py`: Provides data statistics and visualization.
+This project uses the packages listed in `requirements.txt`. To install them in your environment:
 
-5. **Modeling**  
-   - `src/model.py`: Embeds text, trains, and evaluates models.
-
-6. **Main Pipeline**  
-   - `main.py`: Orchestrates the entire workflow.
- 
-## Project Structure
-
-```
-Spam_Detection/
-├── .gitignore
-├── README.md
-├── requirements.txt
-├── copilot-instructions.md
-├── main.py
-├── application.py
-├── eda_result.txt
-├── configs/
-│   └── config.yaml 
-└── src/
-    ├── data_loader.py
-    ├── preprocess.py
-    ├── eda.py
-    ├── train.py
-    ├── model.py
-    └── decorators.py
+```powershell
+python -m pip install -r requirements.txt
 ```
 
-## File/Folder Descriptions
+Important dependencies (high level):
+- Python 3.10+ (project was developed and tested on modern Python 3.11/3.13 environments)
+- pandas, numpy
+- mlflow
+- prefect
+- langchain_huggingface (or the Hugging Face embedding layer used by the code)
+- scikit-learn (or whichever classifier is used by `src/model`)
 
-- `.gitignore`  
-  Python virtual environment and cache ignore rules.
+If you rely on GPU or large Hugging Face models, ensure you have the transformers and accelerate packages available and configured.
 
-- `README.md`  
-  Project documentation (this file).
+## How `app.py` works (step-by-step)
 
-- `requirements.txt`  
-  Python dependencies for the project.
+1. `get_config()` loads settings from `configs/config.yaml`.
+2. `create_required_folder_file(config)` ensures the project folders and files exist.
+3. `setup_environment(config)` (Prefect task) creates a `Database` object, instantiates a `HuggingFaceEmbeddings` model using the `config.models.text_embedding.model_name`, and a `VectorStore` object.
+4. The pipeline queries population-level metadata (`config.metadata.query`), then for each population:
+   - Runs `data_query` to fetch the subset of messages and metadata.
+   - Preprocesses text via `text_normalize`.
+   - Generates embeddings using the Hugging Face embeddings model.
+   - Writes (message, embedding, metadata) pairs into the vectorstore.
+   - Loads the supervised model via `load_model`.
+   - Predicts labels and per-sample confidence scores.
+   - Selects high-confidence samples (where confidence > `config.models.confidence_score_threshold`) and calls `train_model` using those pseudo-labels.
+   - Updates metadata to mark progress.
+5. The DB connection is closed at the end of the run.
 
-- `copilot-instructions.md`  
-  Coding standards and helper rules for GitHub Copilot.
+## Running the pipeline
 
-- `main.py`  
-  Main pipeline script: loads config, fetches data, runs preprocessing, EDA, feature engineering, normalization, and model training.
+From the project root directory, run:
 
-- `application.py`  
-  FastAPI application for serving the model via REST API.
+```powershell
+python .\app.py --mlflow_uri file:./mlruns --experiment "SMS SPAM DETECTION"
+```
 
-- `eda_result.txt`  
-  Output of exploratory data analysis (EDA) statistics.
+Optional flags:
+- `--mlflow_uri` — override MLflow tracking URI. Default is `file:./mlruns` (local folder).
+- `--experiment` — MLflow experiment name. Default is `SMS SPAM DETECTION`.
+- `--model_id` — if provided, `load_model` may use this identifier to load a specific trained model instead of starting from a new model (behavior depends on model implementation).
 
-- `configs/config.yaml`  
-  Configuration for database connection, queries, and model parameters.
- 
-- `src/data_loader.py`  
-  Handles MySQL database connection and data retrieval.
+Notes:
+- The script uses Prefect `@task` and `@flow` decorators. If you prefer not to run within a Prefect orchestration server, running the script directly will execute the Prefect flow locally.
+- Ensure your `configs/config.yaml` contains valid SQL queries and DB credentials so the `Database` connector can authenticate.
 
-- `src/preprocess.py`  
-  Data cleaning, normalization, and feature engineering.
+## Configuration hints
 
-- `src/eda.py`  
-  Exploratory data analysis utilities.
+- `configs/config.yaml` contains sections such as `metadata`, `data`, `vectorstore`, and `models`.
+- `metadata.query` should return rows used to parameterize `config.data.query`.
+- `data.query` is expected to be a format string in the config: `config.data.query.format(*metadata.iloc[i])` is used to fill parameters.
+- `models.text_embedding.model_name` must be a valid Hugging Face model ID supported by the `langchain_huggingface` embedding wrapper.
 
-- `src/train.py`  
-  (Reserved for training logic.)
+## Verification / smoke test
 
-- `src/model.py`  
-  Model definition, embedding, and training logic.
+- After a run, confirm MLflow recorded runs under `./mlruns` (or the `--mlflow_uri` you set).
+- Confirm the vectorstore has entries (how to inspect depends on the vectorstore backend you configured in `configs/config.yaml`).
+- Check logs in `logs/` (if the project writes logs there) and the `mlruns/` UI via `mlflow ui`.
 
-- `src/decorators.py`  
-  (Reserved for decorators/utilities.)
+Example quick check (local MLflow UI):
 
-## Requirements
+```powershell
+# from project root
+mlflow ui --backend-store-uri file:./mlruns --port 5000
+# then open http://127.0.0.1:5000 in browser
+```
 
-See `requirements.txt` for dependencies, including:
-- `mysql-connector-python`
-- `numpy`
-- `pandas`
-- `ftfy`
-- `emoji`
-- `pyyaml`
-- `lingua-language-detector`
-- `scikit-learn`
-- `sentence-transformers`
-- `einops`
-- `jupyter`
-- `fastapi`
-- `uvicorn`
+## Notes, edge cases, and next steps
 
-## Customization
+- If embedding downloads are large, ensure sufficient disk space and possibly configure a cache directory for Hugging Face models and tokens.
+- If the DB returns no rows, the loop will be skipped; check `metadata` query correctness.
+- The model's `predict_proba` must support `max(axis=1)` semantics; ensure the loaded model exposes `predict_proba` (or adapt `app.py` if the model uses different API).
+- Consider adding unit tests for `text_normalize`, `VectorStore.write_to_vectorstore`, and `model_training` logic.
 
-- Add or modify model logic in `src/model.py` and training routines in `src/train.py`.
-- Extend EDA in `src/eda.py` for deeper insights.
-- Adjust feature engineering in `src/preprocess.py` as needed.
+## Contributing
 
-## Troubleshooting
-
-- **Model Download Errors:** Ensure you have a stable internet connection for downloading Hugging Face models.
-- **File Paths:** Check that all file paths in `config.yaml` and scripts are correct relative to your working directory.
-- **Vector-based Models:** If using models like `jinaai/jina-embeddings-v4`, ensure you specify the `task` parameter when encoding.
-
-## Copilot Instructions
-
-See `copilot-instructions.md` for coding standards and helper rules.
+- Follow the existing project structure inside `src/` for new features.
+- Update `requirements.txt` when adding dependencies.
 
 ---
 
-**Author:**  
-Khoh Chia Jun
+If you want, I can also:
+- Add a short sample `configs/config.template.yaml` showing the minimal keys used by `app.py` (DB, queries, model names, thresholds).
+- Add a small smoke test script that runs the flow with a tiny in-memory dataset.
