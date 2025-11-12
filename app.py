@@ -8,8 +8,8 @@ from prefect.cache_policies import NO_CACHE
 from langchain_huggingface import HuggingFaceEmbeddings 
 
 # custom libraries  
-from src.model.model_training import train_model, load_model
-from src.data_loader.data_loader import Database
+from src.ml.model_training import train_model, load_model
+from data_loader.connection import Database
 from src.data_loader.preprocessing import text_normalize 
 from src.vector_database.vectorstore import VectorStore
 from src.config_folder.config_loader import get_config
