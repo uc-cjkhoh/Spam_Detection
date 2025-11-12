@@ -1,33 +1,28 @@
-server: # server configuration
+# server configuration
+server: 
   source: 'mysql'
   host: "10.168.51.196"
   port: 3306
   user: 'unified'
   password: 'unified'
 
+# setup progress log
+progress_log: 
+  folder: 'logs/progress'
+  files:
+    finished: 'logs/progress/label_metadata.xlsx'
+    unfinished: 'logs/progress/unlabel_metadata.xlsx'
 
-module_log: 
-  process_log_path: 
-    folder: 'logs/process'
-    files:
-      label_record_file: 'logs/process/label_metadata.xlsx'
-      unlabel_record_file: 'logs/process/unlabel_metadata.xlsx'
-
-
-models: # define model to perform spam detection
+# define model to perform spam detection
+models: 
   text_embedding:
     model_name: 'jinaai/jina-embeddings-v3'
     batch_size: 8
-  
-  spam_detection:
-    model_name: 'mrm8488/bert-tiny-finetuned-sms-spam-detection' 
-    labelling_confidence_threshold: 0.90
-    batch_size: 32 
-
+  confidence_score_threshold: 0.9
   save_model_to:
     folder: 'models'
  
-
+# quert to select subdata
 data:
   query: 
     'SELECT 
@@ -46,9 +41,9 @@ data:
   target_column: 'payload' # specific the main column that listed in `column_name`
   metadata_column: ['id', 'datetime']
 
-
+# define population data's metadata
 metadata:
-  query: # define subdata group, active learning will loop through group by group
+  query: 
     'SELECT DISTINCT
       YEAR(current_datetime), 
       MONTH(current_datetime), 
@@ -58,7 +53,25 @@ metadata:
       sms_spam_cd.data_tdr_spam_filter'
   column_name: ['year', 'month', 'day', 'hour'] 
 
+# define data to initialize model 
+initialize_model:
+  query: 
+    'SELECT 
+      ml.embedding, 
+      ml.spam_label_update 
+    FROM 
+      sms_spam_cd.ml_spam_result ml
+      LEFT JOIN sms_spam_cd.data_tdr_spam_filter data on ml.id = data.id 
+    WHERE 
+      day(data.current_datetime) = 16 
+      and hour(data.current_datetime) = 0'
 
+# define where vectorstores locate
 vectorstore:
   directory: './data/vector'
   filename: 'sms_embeddings'
+
+# define experiment and model name for this project
+mlflow_config:
+  experiment_name: 'SMS SPAM DETECTION'
+  model_name: 'sgd_model'

@@ -1,6 +1,5 @@
 from prefect import task 
-from prefect.cache_policies import NO_CACHE
-from typing import List, Any 
+from prefect.cache_policies import NO_CACHE 
 from sentence_transformers import SentenceTransformer
 
 import os

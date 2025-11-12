@@ -1,7 +1,5 @@
 import pandas as pd
-import mysql.connector
-import numpy as np
-import logging
+import mysql.connector 
 
 from prefect import task
 from prefect.cache_policies import NO_CACHE

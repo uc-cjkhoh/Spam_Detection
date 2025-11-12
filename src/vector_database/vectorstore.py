@@ -1,6 +1,3 @@
-import numpy as np 
-import faiss 
-import gc 
 import os
 
 from langchain_community.vectorstores import FAISS
@@ -34,6 +31,8 @@ class VectorStore:
                 text_embeddings=text_embedding_pair,
                 metadatas=metadatas
             )
+        
+        self.save()
         
     def save(self):
         if self.index is not None:
