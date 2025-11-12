@@ -7,3 +7,4 @@ loader/__pycache__/
 __pycache__/
 prefect/
 mlruns/
+.gitignore
