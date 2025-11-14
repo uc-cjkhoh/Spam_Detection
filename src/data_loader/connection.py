@@ -22,28 +22,27 @@ class Database:
             )
         except Exception as e:
             raise Exception(e)
-    
+     
     @task(cache_policy=NO_CACHE)
-    def get_population_metadata(self, query, columns: list) -> pd.DataFrame:
+    def run_query(self, query, columns: list) -> pd.DataFrame:
         self.cur.execute(query)
-        data =  pd.DataFrame(self.cur.fetchall(), columns=columns)
+        data = pd.DataFrame(self.cur.fetchall(), columns=columns) 
         return data 
-
-    @task(cache_policy=NO_CACHE)
-    def retrieve_subdata_by_query(self, query, columns: list) -> pd.DataFrame:
-        self.cur.execute(query)
-        data = pd.DataFrame(self.cur.fetchall(), columns=columns)
-        
-        metadata_column = self.cfg.data.metadata_column
-        metadata = data[metadata_column].to_dict(orient='records')
-
-        return data, metadata
 
     def get_cursor(self):
         return self.cur
      
     def close_connection(self):
-        self.cur.close()
-        self.connector.close()
+        try:
+            if self.cur:
+                self.cur.close()
+        except Exception as e:
+            raise Exception(f"Warning: Failed to close cursor: {e}")
+        
+        try:
+            if self.connector:
+                self.connector.close()
+        except Exception as e:
+            raise Exception(f"Warning: Failed to close connector: {e}")
         
         

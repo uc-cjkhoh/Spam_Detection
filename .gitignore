@@ -9,3 +9,4 @@ loader/__pycache__/
 .vscode/
 .gitignore
 .pytest_cache/
+.vscode/

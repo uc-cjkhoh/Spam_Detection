@@ -1,7 +1,6 @@
 mysql-connector-python
 numpy
-pandas
-ftfy 
+pandas 
 pyyaml 
 scikit-learn
 sentence-transformers

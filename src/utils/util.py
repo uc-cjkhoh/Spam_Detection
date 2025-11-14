@@ -1,5 +1,6 @@
 import os 
 import pandas as pd 
+import numpy as np
  
 from prefect import task 
 from prefect.cache_policies import NO_CACHE  
@@ -52,3 +53,19 @@ def update_metadata(config: dict, all_metadata: pd.DataFrame=None):
         
         updated_finished.to_excel(finished_metadata, index=False)
         updated_unfinished.to_excel(unfinished_metadata, index=False)
+        
+
+@task(cache_policy=NO_CACHE)
+def generate_metadata(default_metadata: pd.DataFrame, ml_label, ml_confidence_score, threshold): 
+    num_to_label = int(len(default_metadata) * 0.1)
+    k_least_conf_idx = np.argpartition(ml_confidence_score, num_to_label)[:num_to_label] 
+    label_status = np.array(['unlabeled'] * len(default_metadata), dtype=object)
+    label_status[ml_confidence_score > threshold] = 'pseudo'
+    label_status[k_least_conf_idx] = 'human'
+         
+    other_metadata = pd.DataFrame({
+        'label': ml_label,
+        'confidence_score': ml_confidence_score,
+        'label_status': label_status
+    }) 
+    return pd.concat([default_metadata, other_metadata], axis=1).to_dict(orient='records')
