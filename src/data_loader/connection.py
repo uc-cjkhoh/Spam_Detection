@@ -6,8 +6,11 @@ from prefect.cache_policies import NO_CACHE
  
  
 class Database:
-    def __init__(self, cfg):
-        self.cfg = cfg
+    def __init__(self, host, port, user, password):
+        self.host = host
+        self.port = port
+        self.user = user
+        self.password = password
         self.connector = self.initialize_db_connection()
         self.cur = self.connector.cursor()
 
@@ -15,10 +18,10 @@ class Database:
     def initialize_db_connection(self):
         try:     
             return mysql.connector.connect(
-                host = self.cfg.server.host,
-                port = self.cfg.server.port,
-                user = self.cfg.server.user,
-                password = self.cfg.server.password
+                host = self.host,
+                port = self.port,
+                user = self.user,
+                password = self.password
             )
         except Exception as e:
             raise Exception(e)

@@ -4,41 +4,59 @@ import numpy as np
  
 from prefect import task 
 from prefect.cache_policies import NO_CACHE  
+from langchain_huggingface import HuggingFaceEmbeddings 
      
-     
-@task(cache_policy=NO_CACHE)      
-def create_required_folder_file(cfg):
-    """
-    Create necessary directorlies and files
-    """
+from data_loader.connection import Database
+from src.vector_database.vectorstore import VectorStore
+
+
+@task(cache_policy=NO_CACHE)  
+def setup_environment(config: dict): 
+    database = Database(
+        host=config.server.host,
+        port=config.server.port,
+        user=config.server.user,
+        password=config.server.password
+    )
     
+    embedding_model = HuggingFaceEmbeddings(
+        model_name=config.models.text_embedding.model_name,
+        model_kwargs={'trust_remote_code': True},
+        encode_kwargs={
+            'normalize_embeddings': True,
+            'batch_size': 4
+        },
+        show_progress=True
+    )
+    
+    vectorstore = VectorStore(
+        directory=config.vectorstore.directory, 
+        filename=config.vectorstore.filename
+    )
+     
+    return database, embedding_model, vectorstore   
+
+
+@task(cache_policy=NO_CACHE)      
+def create_required_folder_file(config: dict):  
     # create directories 
-    os.makedirs(cfg.progress_log.folder, exist_ok=True)
-    os.makedirs(cfg.vectorstore.directory, exist_ok=True)
+    os.makedirs(config.progress_log.folder, exist_ok=True)
+    os.makedirs(config.vectorstore.directory, exist_ok=True)
     
     # create files
-    if not os.path.isfile(cfg.progress_log.files.finished):
-        pd.DataFrame(columns=cfg.metadata.column_name).to_excel(
-            cfg.progress_log.files.finished, index=False
+    if not os.path.isfile(config.progress_log.files.finished):
+        pd.DataFrame(columns=config.metadata.column_name).to_excel(
+            config.progress_log.files.finished, index=False
         )
         
-    if not os.path.isfile(cfg.progress_log.files.unfinished):
-        pd.DataFrame(columns=cfg.metadata.column_name).to_excel(
-            cfg.progress_log.files.unfinished, index=False
+    if not os.path.isfile(config.progress_log.files.unfinished):
+        pd.DataFrame(columns=config.metadata.column_name).to_excel(
+            config.progress_log.files.unfinished, index=False
         ) 
 
  
-def update_metadata(config: dict, all_metadata: pd.DataFrame=None):
-    """
-    Update training process by checking if a subdata has been labelled.
-
-    Args:
-        metadata (pd.DataFrame): all subdata grouping metadata
-
-    Returns:
-        pd.DataFrame: pandas dataframe
-    """
-    
+@task(cache_policy=NO_CACHE)
+def update_metadata(config: dict, all_metadata: pd.DataFrame=None): 
     finished_metadata = config.progress_log.files.finished
     unfinished_metadata = config.progress_log.files.unfinished
     
@@ -68,4 +86,5 @@ def generate_metadata(default_metadata: pd.DataFrame, ml_label, ml_confidence_sc
         'confidence_score': ml_confidence_score,
         'label_status': label_status
     }) 
+    
     return pd.concat([default_metadata, other_metadata], axis=1).to_dict(orient='records')

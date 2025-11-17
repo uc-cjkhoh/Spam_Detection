@@ -17,8 +17,9 @@ class Regex:
     only_char = r'[a-zA-Z]+'
     only_num = r'[0-9]+'
         
+        
 @task(cache_policy=NO_CACHE)
-def text_normalize(data: pd.DataFrame, target_column: str) -> pd.DataFrame:
+def get_normalized_messages(data: pd.DataFrame, target_column: str) -> pd.DataFrame:
     """
     Normalize message structure
 
@@ -30,17 +31,12 @@ def text_normalize(data: pd.DataFrame, target_column: str) -> pd.DataFrame:
     """
     
     try:
-        message = data[target_column]
-        # message = message.apply(ftfy.fix_text)
-        message = message.apply(str.strip)
-        # message = message.apply(str.lower)
+        message = data[target_column] 
+        message = message.apply(str.strip) 
         message = message.apply(lambda x: re.sub(r'\s+', ' ', x))
         message = message.apply(lambda x: x.replace(r'\n', ' '))
-        message = message.apply(lambda x: emoji.replace_emoji(x, '<EMO>'))
-        
-        data[target_column] = message
-        return data
+        message = message.apply(lambda x: emoji.replace_emoji(x, '<EMO>')) 
+        return message.to_list()
     except KeyError:
-        print('Invalid column, check if column_name and payload_column is the same in ./configs/config.yaml')
-        raise
+        raise KeyError('Invalid column, check if column_name and payload_column is the same in ./configs/config.yaml') 
         

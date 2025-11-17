@@ -9,11 +9,12 @@ tqdm
 transformers
 joblib
 addict
-custom_st
 mlflow
 prefect
 langchain-community
 langchain
 langchain-core
 pytest
-unittest
+emoji
+openpyxl
+faiss-cpu
