@@ -35,8 +35,7 @@ data:
       YEAR(current_datetime) = {}
       AND MONTH(current_datetime) = {}
       AND DAY(current_datetime) = {}
-      AND HOUR(current_datetime) = {}
-    LIMIT 100'
+      AND HOUR(current_datetime) = {}'
   column_name: ['id', 'datetime', 'payload']
   target_column: 'payload' # specific the main column that listed in `column_name`
   metadata_column: ['id', 'datetime']

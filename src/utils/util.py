@@ -1,12 +1,12 @@
 import os 
-import pandas as pd 
 import numpy as np
+import pandas as pd 
  
 from prefect import task 
 from prefect.cache_policies import NO_CACHE  
 from langchain_huggingface import HuggingFaceEmbeddings 
      
-from data_loader.connection import Database
+from src.data_loader.connection import Database
 from src.vector_database.vectorstore import VectorStore
 
 
@@ -74,17 +74,32 @@ def update_metadata(config: dict, all_metadata: pd.DataFrame=None):
         
 
 @task(cache_policy=NO_CACHE)
-def generate_metadata(default_metadata: pd.DataFrame, ml_label, ml_confidence_score, threshold): 
-    num_to_label = int(len(default_metadata) * 0.1)
-    k_least_conf_idx = np.argpartition(ml_confidence_score, num_to_label)[:num_to_label] 
-    label_status = np.array(['unlabeled'] * len(default_metadata), dtype=object)
-    label_status[ml_confidence_score > threshold] = 'pseudo'
-    label_status[k_least_conf_idx] = 'human'
-         
+def initialize_metadata(default_metadata: pd.DataFrame): 
     other_metadata = pd.DataFrame({
-        'label': ml_label,
-        'confidence_score': ml_confidence_score,
-        'label_status': label_status
+        'label': [None] * len(default_metadata),
+        'confidence_score': [None] * len(default_metadata),
+        'label_status': [None] * len(default_metadata)
     }) 
     
     return pd.concat([default_metadata, other_metadata], axis=1).to_dict(orient='records')
+
+
+@task(cache_policy=NO_CACHE)
+def generate_metadata(default_metadata: pd.DataFrame, y_pred: np.ndarray, confidence_score: np.ndarray, threshold: float):
+    pseudo_idx = np.where(confidence_score > threshold)[0]
+    human_idx = np.argpartition(confidence_score, int(len(default_metadata) * 0.1))[:int(len(default_metadata) * 0.1)]
+    
+    label_status = np.array(['unlabeled'] * len(default_metadata))
+    label_status[pseudo_idx] = 'pseudo-label'
+    label_status[human_idx] = 'human-label'
+    
+    metadata = pd.concat([
+        default_metadata,
+        pd.DataFrame({
+            'label': y_pred,
+            'confidence_score': confidence_score,
+            'label_status': label_status
+        })
+    ], axis=1).to_dict(orient='records')
+    
+    return metadata
