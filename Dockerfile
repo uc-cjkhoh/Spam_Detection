@@ -2,7 +2,7 @@ FROM python:latest
  
 WORKDIR /usr/src/text_embedding
 
-COPY embedding_module.py .
+COPY run_embedding.py .
 
 COPY requirements.txt .
 
@@ -12,4 +12,4 @@ COPY src/ ./src/
  
 RUN pip install -r requirements.txt
 
-CMD ["python", "embedding_module.py"]
+CMD ["python", "run_embedding.py"]

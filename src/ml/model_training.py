@@ -21,24 +21,26 @@ def load_model(config, cursor):
         model = mlflow.pyfunc.load_model(model_uri)
     else:
         model = initialize_model(config, cursor)
-                
+        
     return model
+
+
+@task(cache_policy=NO_CACHE)  
+def blob_to_numpy(imported_data):
+    embeddings = []
+    labels = []
+    for row in tqdm(imported_data):
+        embedding = row[0].decode('utf-8')
+        label = row[1]
+        
+        embeddings.append(ast.literal_eval(embedding))
+        labels.append(label)
+        
+    return np.asarray(embeddings), np.asarray(labels)
 
  
 @task(cache_policy=NO_CACHE)   
 def initialize_model(config: dict, cursor):
-    def blob_to_numpy(imported_data):
-        embeddings = []
-        labels = []
-        for row in tqdm(imported_data):
-            embedding = row[0].decode('utf-8')
-            label = row[1]
-            
-            embeddings.append(ast.literal_eval(embedding))
-            labels.append(label)
-            
-        return np.asarray(embeddings), np.asarray(labels)
-        
     model = SGDClassifier(loss='log_loss', class_weight='balanced')  
     
     cursor.execute(config.initialize_model.query)

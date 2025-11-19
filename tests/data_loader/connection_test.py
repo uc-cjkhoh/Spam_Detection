@@ -28,7 +28,12 @@ def test_mock_db(mock_cfg):
         mock_cursor = MagicMock()
         mock_connection.cursor.return_value = mock_cursor 
         
-        db = Database(mock_cfg)
+        db = Database(
+            host=mock_cfg.server.host,
+            port=mock_cfg.server.port,
+            user=mock_cfg.server.user,
+            password=mock_cfg.server.password
+        )
         yield db
         db.close_connection()
         

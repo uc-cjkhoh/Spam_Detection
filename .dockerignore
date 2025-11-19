@@ -1,1 +1,17 @@
 src/ml/
+venv/
+logs/
+data/
+prefect/
+notebooks/
+tests/
+mlruns/
+__pycache__/
+src/__pycache__/
+loader/__pycache__/
+.vscode/
+.gitignore
+.pytest_cache/
+.vscode/
+README.md
+run_detection.py
