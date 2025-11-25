@@ -1,6 +1,6 @@
 import ast
+import mlflow 
 import numpy as np
-import mlflow
 import mlflow.sklearn
 
 from tqdm import tqdm

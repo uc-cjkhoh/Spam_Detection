@@ -10,8 +10,7 @@ class VectorStore:
         self.directory = directory 
         self.filename = filename 
         self.index = self._check_any_existing_vectorstore()
-    
-    @task(cache_policy=NO_CACHE)
+     
     def _check_any_existing_vectorstore(self):
         filepath = os.path.join(self.directory, self.filename)
         if os.path.exists(filepath):

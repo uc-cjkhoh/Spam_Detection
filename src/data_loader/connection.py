@@ -13,8 +13,7 @@ class Database:
         self.password = password
         self.connector = self.initialize_db_connection()
         self.cur = self.connector.cursor()
-
-    @task(cache_policy=NO_CACHE)
+ 
     def initialize_db_connection(self):
         try:     
             return mysql.connector.connect(

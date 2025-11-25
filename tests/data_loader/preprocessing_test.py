@@ -21,7 +21,7 @@ def test_get_normalized_messages():
         'Multiple lines here <EMO>'
     ]
     
-    result = get_normalized_messages(sample_df, target_column='message')
+    result = get_normalized_messages.fn(sample_df, target_column='message')
     
     assert result == expect
     assert isinstance(result, list)
@@ -31,4 +31,4 @@ def test_get_normalized_messages_invalid_column():
     sample_df = pd.DataFrame({'text': ['Hello']})
     
     with pytest.raises(KeyError, match='Invalid column'): 
-        get_normalized_messages(sample_df, target_column='message')
+        get_normalized_messages.fn(sample_df, target_column='message')

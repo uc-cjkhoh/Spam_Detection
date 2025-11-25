@@ -14,9 +14,9 @@ def mock_cfg():
     mock_cfg.server.port = 3306
     mock_cfg.server.user = 'unified'
     mock_cfg.server.password = 'unified'
-    mock_cfg.data.metadata_column = 'id'
-    
+    mock_cfg.data.metadata_column = 'id' 
     return mock_cfg
+
 
 @pytest.fixture
 def test_mock_db(mock_cfg):
@@ -37,6 +37,7 @@ def test_mock_db(mock_cfg):
         yield db
         db.close_connection()
         
+        
 def test_run_query(test_mock_db):
     """
     test if cursor execute query once 
@@ -51,10 +52,10 @@ def test_run_query(test_mock_db):
         (7, 8, 9)
     ]
     
-    test_mock_db.cur.fetchall.return_value = mock_data 
-    result = test_mock_db.run_query(query, columns)
+    test_mock_db.get_cursor().fetchall.return_value = mock_data 
+    result = test_mock_db.run_query.fn(query, columns)
     
-    test_mock_db.cur.execute.assert_called_once_with(query)
+    test_mock_db.get_cursor.execute.assert_called_once_with(query)
     assert isinstance(result, pd.DataFrame)
     assert len(result) == len(mock_data)
 
