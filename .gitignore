@@ -10,3 +10,6 @@ loader/__pycache__/
 .gitignore
 .pytest_cache/
 .vscode/
+Dockerfile
+.dockerignore
+docker-compose.yml

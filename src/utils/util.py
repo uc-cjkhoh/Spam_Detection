@@ -89,7 +89,7 @@ def generate_metadata(default_metadata: pd.DataFrame, y_pred: np.ndarray, confid
     pseudo_idx = np.where(confidence_score > threshold)[0]
     human_idx = np.argpartition(confidence_score, int(len(default_metadata) * 0.1))[:int(len(default_metadata) * 0.1)]
     
-    label_status = np.array(['unlabeled'] * len(default_metadata))
+    label_status = np.array(['unlabeled'] * len(default_metadata), dtype=object)
     label_status[pseudo_idx] = 'high_confidence'
     label_status[human_idx] = 'least_confidence'
     

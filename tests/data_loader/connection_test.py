@@ -1,72 +1,66 @@
 import pandas as pd
 import pytest
+import mysql.connector
 
 from datetime import datetime
 from unittest.mock import MagicMock, patch
+from prefect.testing.utilities import prefect_test_harness
 
 from src.data_loader.connection import Database
-
-
+ 
+ 
+@pytest.fixture(autouse=True)
+def disable_prefect_task():
+    with prefect_test_harness():
+        yield
+        
+        
 @pytest.fixture
-def mock_cfg():
-    mock_cfg = MagicMock()
-    mock_cfg.server.host = '10.168.51.196'
-    mock_cfg.server.port = 3306
-    mock_cfg.server.user = 'unified'
-    mock_cfg.server.password = 'unified'
-    mock_cfg.data.metadata_column = 'id' 
-    return mock_cfg
+def mock_mysql(): 
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = [(1, "Alice"), (2, "Bob")]
+
+    mock_connector = MagicMock()
+    mock_connector.cursor.return_value = mock_cursor
+
+    with patch("mysql.connector.connect", return_value=mock_connector):
+        yield mock_connector, mock_cursor
 
 
-@pytest.fixture
-def test_mock_db(mock_cfg):
-    """test database connection"""
-    with patch('mysql.connector.connect') as mock_connect:
-        mock_connection = MagicMock()
-        mock_connect.return_value = mock_connection
-        
-        mock_cursor = MagicMock()
-        mock_connection.cursor.return_value = mock_cursor 
-        
-        db = Database(
-            host=mock_cfg.server.host,
-            port=mock_cfg.server.port,
-            user=mock_cfg.server.user,
-            password=mock_cfg.server.password
-        )
-        yield db
-        db.close_connection()
-        
-        
-def test_run_query(test_mock_db):
-    """
-    test if cursor execute query once 
-    test if the returned datatype is pd.DataFrame
-    test if the output length is the same as input length
-    """
-    query = "select col1, col2, col3 from database"
-    columns = ['example1', 'example2', 'example3']
-    mock_data = [
-        (1, 2, 3),
-        (4, 5, 6),
-        (7, 8, 9)
-    ]
-    
-    test_mock_db.get_cursor().fetchall.return_value = mock_data 
-    result = test_mock_db.run_query.fn(query, columns)
-    
-    test_mock_db.get_cursor.execute.assert_called_once_with(query)
+def test_initialize_db_connection(mock_mysql):
+    mock_connector, _ = mock_mysql
+
+    db = Database("localhost", 3306, "user", "pw")
+
+    # connector assigned correctly
+    assert db.connector is mock_connector
+    assert db.cur is mock_connector.cursor.return_value
+
+
+def test_run_query(mock_mysql):
+    mock_connector, mock_cursor = mock_mysql
+
+    db = Database("host", 3306, "user", "pw")
+    result = db.run_query(query="SELECT * FROM tbl", columns=["id", "name"])
+
+    mock_cursor.execute.assert_called_once_with("SELECT * FROM tbl")
     assert isinstance(result, pd.DataFrame)
-    assert len(result) == len(mock_data)
+    assert list(result.columns) == ["id", "name"]
+    assert result.shape == (2, 2)
 
 
-def test_get_cursor(test_mock_db):
-    """test if returned cursor is the same with existing cursor"""
-    assert test_mock_db.cur == test_mock_db.get_cursor()
+def test_get_cursor(mock_mysql):
+    mock_connector, mock_cursor = mock_mysql
+    db = Database("h", 1, "u", "p")
+
+    assert db.get_cursor() is mock_cursor
     
-    
-def test_close_connection(test_mock_db):
-    """test if the close function get called"""
-    test_mock_db.close_connection()
-    test_mock_db.cur.close.assert_called_once()
-    test_mock_db.connector.close.assert_called_once()
+
+def test_close_connection(mock_mysql):
+    mock_connector, mock_cursor = mock_mysql
+    db = Database("h", 1, "u", "p")
+
+    db.close_connection()
+
+    mock_cursor.close.assert_called_once()
+    mock_connector.close.assert_called_once()
