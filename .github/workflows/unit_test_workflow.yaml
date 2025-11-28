@@ -2,7 +2,7 @@ name: sms spam detection unit test
 
 on:
   push:
-    branches: [ "SMS_SPAM_DEETECTION" ]
+    branches: [ "SMS_SPAM_DETECTION" ]
   pull_request:
     branches: [ "main" ]
 
