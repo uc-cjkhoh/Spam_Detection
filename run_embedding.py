@@ -24,7 +24,7 @@ def send_to_message_queue(producer: KafkaProducer, topic: str, embeddings: np.nd
         batch_metadatas = metadatas[i:i+batch_size]
         payload = {
             'batch_idx': i,
-            'embeddings': batch_embeddings,
+            # 'embeddings': batch_embeddings,
             'metadatas': batch_metadatas
         }
         producer.send(topic=topic, value=payload)
@@ -50,7 +50,7 @@ def main(args):
         for i in range(len(metadata)):  
             # get messages
             data_query = config.data.query.format(*metadata.iloc[i]) 
-            data = db.run_query(data_query, columns=config.data.column_name) 
+            data = db.run_query(data_query, columns=config.data.column_name)[:100]
             messages = get_normalized_messages(data, target_column=config.data.target_column) 
             
             # save messages
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser(description="Text Embedding Module")
     p.add_argument("--kafka_uri", type=str, default='localhost:9092')
     p.add_argument("--topic", type=str, default='text_embedding')
-    p.add_argument("--batch_size", type=int, default=500)
+    p.add_argument("--batch_size", type=int, default=512)
     
     args = p.parse_args()
-    main(args)
+    main(args) 

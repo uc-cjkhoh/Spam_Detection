@@ -4,6 +4,7 @@ import argparse
 import mlflow 
 import json
 
+from sklearn.decomposition import PCA
 from prefect import flow, get_run_logger
 from kafka import KafkaConsumer
 
@@ -25,43 +26,41 @@ def main(args):
         # update_metadata(config, metadata)
         
         consumer = KafkaConsumer(
-            topics=['embeddings'],
-            bootstrap_servers=['localhost:9000'],
+            topics=[args.topic],
+            bootstrap_servers=[args.kafka_uri],
+            auto_offset_reset="earliest",
             value_deserializer=lambda x: json.loads(x.decode('utf-8'))
         )
         
         logger.info("Consumer started and listening")
-        
         for msg in consumer:
-            logger.info(f"Received metadata: {msg.metadata}")
+            logger.info(f"Received data block at {msg.timestamp}")
+
+            # load data in message queue
+            messages_metadata = pd.DataFrame(msg.value)
             
-            index = vectorstore.get_index()
-            
-            
-            
-            
-        
-        for i in range(len(metadata)):  
-            data_query = config.data.query.format(*metadata.iloc[i]) 
-            
-            data = db.run_query(data_query, columns=config.data.column_name)
-            
-            # MISSING: get pseudo-labeled and human-labeled embeddings from vectorstore
-            
-            messages = get_normalized_messages(data, target_column=config.data.target_column) 
-            
-            embeddings = np.asarray(embedding_model.embed_documents(messages))
+            # get messages' id
+            msg_id = messages_metadata.loc[:, 'id']
              
+            # get faiss indexx
+            faiss_index = vectorstore.get_index()
+            
+            # find embeddings in faiss index by ids
+            embeddings = faiss_index.similarity_search()
+            
+            # dimensional reduction 
+            pca = PCA(n_components=min(embeddings.shape[0], embeddings.shape[-1]))
+            scaled_embeddings = pca.fit_transform(embeddings)
+            
+            # load model
             ml_model = load_model(config, db.get_cursor()) 
+             
+            # y_pred, confidence_score = ml_model.predict(embeddings), ml_model.predict_proba(embeddings).max(axis=1)
             
-            y_pred, confidence_score = ml_model.predict(embeddings), ml_model.predict_proba(embeddings).max(axis=1)
-            
-            data_metadata = generate_metadata(data[config.data.metadata_column], y_pred, confidence_score, config.models.confidence_score_threshold)
+            # data_metadata = generate_metadata(data[config.data.metadata_column], y_pred, confidence_score, config.models.confidence_score_threshold)
             
             # MISSING: update metadata of faiss by ids
-            
-            vectorstore.write_to_vectorstore(zip(messages, embeddings), embedding_model, data_metadata) 
-            
+             
             
             update_metadata(config)
     except Exception as e:
@@ -75,6 +74,8 @@ if __name__ == '__main__':
     p.add_argument("--mlflow_uri", type=str, default='file:./mlruns', help='override mlflow tracking uri, else uses ./mlruns')
     p.add_argument("--experiment", type=str, default='SMS SPAM DETECTION')
     p.add_argument("--model_id", type=str, default=None, help='specify trained model, else use new model') 
+    p.add_argument("--kafka_uri", type=str, default='localhost:9092')
+    p.add_argument("--topic", type=str, default='text_embedding')
     args = p.parse_args()
         
     mlflow.set_tracking_uri(args.mlflow_uri)

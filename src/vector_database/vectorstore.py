@@ -6,15 +6,20 @@ from prefect.cache_policies import NO_CACHE
 
 
 class VectorStore:
-    def __init__(self, directory, filename):
+    def __init__(self, directory, filename, embedding):
         self.directory = directory 
         self.filename = filename 
+        self.embedding = embedding
         self.index = self._check_any_existing_vectorstore()
      
     def _check_any_existing_vectorstore(self):
         filepath = os.path.join(self.directory, self.filename)
         if os.path.exists(filepath):
-            self.index = FAISS.load_local(filepath)
+            self.index = FAISS.load_local(
+                folder_path=self.directory, 
+                index_name=self.filename, 
+                embeddings=self.embedding
+            )
         else:
             self.index = None
 
@@ -24,7 +29,8 @@ class VectorStore:
             self.index = FAISS.from_embeddings(
                 text_embeddings=text_embedding_pair,
                 embedding=embedding,
-                metadatas=metadatas
+                metadatas=metadatas,
+                allow_dangerous_deserialization=True
             )
         else:
             self.index.add_embeddings(
