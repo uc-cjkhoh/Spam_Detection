@@ -28,8 +28,8 @@ class Database:
     @task(cache_policy=NO_CACHE)
     def run_query(self, query, columns: list) -> pd.DataFrame:
         self.cur.execute(query)
-        data = pd.DataFrame(self.cur.fetchall(), columns=columns) 
-        return data 
+        data = pd.DataFrame(self.cur.fetchall(), columns=columns)
+        return data
 
     def get_cursor(self):
         return self.cur

@@ -11,7 +11,7 @@ from src.vector_database.vectorstore import VectorStore
 
 
 @task(cache_policy=NO_CACHE)  
-def setup_environment(config: dict): 
+def setup_core_instances(config: dict): 
     database = Database(
         host=config.server.host,
         port=config.server.port,
@@ -31,7 +31,8 @@ def setup_environment(config: dict):
     
     vectorstore = VectorStore(
         directory=config.vectorstore.directory, 
-        filename=config.vectorstore.filename
+        filename=config.vectorstore.filename,
+        embedding=embedding_model
     )
      
     return database, embedding_model, vectorstore   

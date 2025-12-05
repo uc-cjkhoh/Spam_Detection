@@ -24,7 +24,7 @@ class VectorStore:
             self.index = None
 
     @task(cache_policy=NO_CACHE)
-    def write_to_vectorstore(self, text_embedding_pair, embedding, metadatas: list[dict]):
+    def write_to_vectorstore(self, text_embedding_pair, embedding, metadatas: list[dict] = None):
         if self.index is None:
             self.index = FAISS.from_embeddings(
                 text_embeddings=text_embedding_pair,
