@@ -19,3 +19,4 @@ openpyxl
 faiss-cpu
 pytest
 mlflow
+custom-st

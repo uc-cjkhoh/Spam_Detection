@@ -20,8 +20,7 @@ def setup_core_instances(config: dict):
     )
     
     embedding_model = HuggingFaceEmbeddings(
-        model_name=config.models.text_embedding.model_name,
-        model_kwargs={'trust_remote_code': True},
+        model_name=config.models.text_embedding.model_name, 
         encode_kwargs={
             'normalize_embeddings': True,
             'batch_size': 4
