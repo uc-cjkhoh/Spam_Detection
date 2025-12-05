@@ -16,7 +16,7 @@ progress_log:
 # define model to perform spam detection
 models: 
   text_embedding:
-    model_name: "intfloat/multilingual-e5-large"
+    model_name: "jinaai/jina-embeddings-v3"
     batch_size: 8
   confidence_score_threshold: 0.9
   save_model_to:

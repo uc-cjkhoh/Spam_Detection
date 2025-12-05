@@ -20,7 +20,8 @@ def setup_core_instances(config: dict):
     )
     
     embedding_model = HuggingFaceEmbeddings(
-        model_name=config.models.text_embedding.model_name, 
+        model_name="jinaai/jina-embeddings-v3",
+        model_kwargs={'trust_remote_code': True},
         encode_kwargs={
             'normalize_embeddings': True,
             'batch_size': 4
