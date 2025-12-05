@@ -17,6 +17,5 @@ langchain-huggingface
 emoji
 openpyxl
 faiss-cpu
-kafka-python
 pytest
 mlflow

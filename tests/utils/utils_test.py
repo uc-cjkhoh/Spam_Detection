@@ -11,7 +11,7 @@ from src.data_loader.connection import Database
 from src.vector_database.vectorstore import VectorStore
 from src.config_folder.config_loader import get_config
 
-from src.utils.util import setup_environment, create_required_folder_file, update_metadata, initialize_metadata, generate_metadata
+from src.utils.util import setup_core_instances, create_required_folder_file, update_metadata, initialize_metadata, generate_metadata
 
 
 @pytest.fixture(autouse=True)
@@ -32,7 +32,7 @@ def mock_mysql():
         yield mock_connector, mock_cursor
 
  
-def test_setup_environment(mock_mysql):
+def test_setup_core_instances(mock_mysql):
     config = MagicMock()
     config.models.text_embedding.model_name = "fake-model"
     config.vectorstore.directory = "dir"
@@ -50,7 +50,7 @@ def test_setup_environment(mock_mysql):
         patch("src.utils.util.HuggingFaceEmbeddings", return_value=mock_emb), \
         patch("src.utils.util.VectorStore", return_value=mock_vs):
 
-        db, emb, vs = setup_environment.fn(config)
+        db, emb, vs = setup_core_instances.fn(config)
 
         assert db.connector is mock_connector
         assert db.cur is mock_cursor
