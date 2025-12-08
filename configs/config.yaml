@@ -59,7 +59,7 @@ initialize_model:
       ml.embedding, 
       ml.spam_label_update 
     FROM 
-      sms_spam_cd.ml_spam_result ml
+      sms_spam_cd.ml_spam_result_ori ml
       LEFT JOIN sms_spam_cd.data_tdr_spam_filter data on ml.id = data.id 
     WHERE 
       day(data.current_datetime) = 16 
