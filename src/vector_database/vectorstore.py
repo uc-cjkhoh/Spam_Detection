@@ -18,7 +18,8 @@ class VectorStore:
             self.index = FAISS.load_local(
                 folder_path=self.directory, 
                 index_name=self.filename, 
-                embeddings=self.embedding
+                embeddings=self.embedding,
+                allow_dangerous_deserialization=True
             )
         else:
             self.index = None
@@ -29,8 +30,7 @@ class VectorStore:
             self.index = FAISS.from_embeddings(
                 text_embeddings=text_embedding_pair,
                 embedding=embedding,
-                metadatas=metadatas,
-                allow_dangerous_deserialization=True
+                metadatas=metadatas
             )
         else:
             self.index.add_embeddings(
