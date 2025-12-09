@@ -1,11 +1,7 @@
-import numpy as np
-import os
-import pandas as pd
-import argparse
-import json
+import numpy as np 
+import argparse 
 import mlflow
-
-from tqdm import tqdm
+ 
 from prefect import flow, task 
 from sklearn.decomposition import PCA
 
@@ -37,13 +33,13 @@ def setup_environment():
     
 
 @flow(name="Get Messages And Embeddings")
-def get_normalized_messages_embeddings(config, data, embedding_model, data_query):   
+def get_normalized_messages_embeddings(config, data, embedding_model):   
     messages = get_normalized_messages(data, target_column=config.data.target_column)
     embeddings = embed_messages(embedding_model, messages)    
     return messages, embeddings
 
 
-@flow(name="SMS Spam Detection")
+@flow(name="spam classification")
 def perform_ml_operations(config, db, embeddings): 
     ml_model = load_model(config, db.get_cursor())  
     y_pred, confidence_score = ml_model.predict(embeddings), ml_model.predict_proba(embeddings).max(axis=1) 
@@ -56,27 +52,30 @@ def main(args):
         config, db, embedding_model, vectorstore, metadata = setup_environment()
         
         for i in range(len(metadata)):   
-            # format sql query
-            data_query = config.data.query.format(*metadata.iloc[i])   
-            
             # get messages
+            data_query = config.data.query.format(*metadata.iloc[i])    
             data = db.run_query(data_query, columns=config.data.column_name) 
             
             # preprocess messages and embeddings
-            normalized_messages, embeddings = get_normalized_messages_embeddings(config, data, embedding_model, data_query)
-            
-            # reduce embeddings dimensions
+            _, embeddings = get_normalized_messages_embeddings(config, data, embedding_model) 
             scaled_embeddings = dimension_reduction(embeddings)
-             
+            
             # get model prediction and confidence score
             y_pred, confidence_score = perform_ml_operations(config, db, scaled_embeddings)
-             
-            # combine message metadata with model result
-            data_metadata = generate_metadata(data[config.data.metadata_column], y_pred, confidence_score, config.models.confidence_score_threshold)
+
+            # group embeddings by confidence score
+            high_confidence_idx = np.where(confidence_score >= config.models.confidence_score_threshold)[0]
+            high_conf_embedding, high_conf_pred = scaled_embeddings[high_confidence_idx], y_pred[high_confidence_idx]
             
+            
+            low_confidence_idx = np.where(confidence_score < config.models.confidence_score_threshold)[0]
+            
+    
             # write to vector database
+            data_metadata = generate_metadata(data[config.data.metadata_column], y_pred, confidence_score, config.models.confidence_score_threshold)
             vectorstore.write_to_vectorstore(zip(data[config.data.target_column].to_list(), embeddings), embedding_model, data_metadata) 
             
+            # update module progress
             update_metadata(config)
             
     except Exception as e:
