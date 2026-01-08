@@ -4,6 +4,8 @@ from abc import ABC
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
+from prefect import task
+from prefect.cache_policies import NO_CACHE
 
 
 class ModelBoneStructure(ABC):
@@ -48,10 +50,12 @@ class SGD(ModelBoneStructure):
             )
         )
     
+    @task(name='Fit Model', cache_policy=NO_CACHE)
     def fit(self, x, y):
         self.model.fit(x, y)
         return self.model
-       
+    
+    
 class XGBoost(ModelBoneStructure):
     def __init__(self, experiment_name):
         super().__init__(
@@ -63,6 +67,7 @@ class XGBoost(ModelBoneStructure):
             )
         )
         
+    @task(name='Fit Model', cache_policy=NO_CACHE)
     def fit(self, x, y):
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, shuffle=True)  
         self.model.fit(x_train, y_train, eval_set=[(x_test, y_test)], xgb_model=self.model.get_booster()) 

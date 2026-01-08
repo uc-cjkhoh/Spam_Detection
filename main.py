@@ -120,7 +120,7 @@ def main(args):
             while evaluation < 0.8:  
                 for model in models:
                     # 5. Initiate or train model
-                    model = train_models(config, args, db, embedding_model, model)
+                    train_models(config, args, db, embedding_model, model)
                     
                     # 6. Select stratified sample in this day, group by hour
                     data = db.run_query(config.data.query.format(*(day, 1500)), columns=config.data.column_name)
