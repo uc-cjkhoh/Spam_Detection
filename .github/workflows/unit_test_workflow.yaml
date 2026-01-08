@@ -1,0 +1,25 @@
+name: sms spam detection unit test
+
+on:
+  push:
+    branches: [ "SMS_SPAM_DETECTION" ]
+
+permissions:
+    contents: read
+
+jobs:
+  test_pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+    
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+    
+      - name: Run tests
+        run: pytest tests/
