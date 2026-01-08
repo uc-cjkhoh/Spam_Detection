@@ -2,6 +2,7 @@ import mlflow
 
 from abc import ABC
 from sklearn.linear_model import SGDClassifier
+from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
 
@@ -20,7 +21,7 @@ class ModelBoneStructure(ABC):
             order_by=[{'field_name': 'creation_timestamp', 'ascending': False}]
         )
         
-        self.model = model  
+        self.model = model if len(self.model_list) == 0 else mlflow.sklearn.load_model(f'models:/{model_name}/{len(self.model_list)}')
          
     def predict(self, x):
         return self.model.predict(x) 
@@ -30,6 +31,7 @@ class ModelBoneStructure(ABC):
     
     def get_existing_models(self):
         return self.model_list
+  
 
 class SGD(ModelBoneStructure):
     def __init__(self, experiment_name):
@@ -41,9 +43,14 @@ class SGD(ModelBoneStructure):
                 class_weight='balanced',
                 early_stopping=True,
                 learning_rate='adaptive',
-                validation_fraction=0.2
+                validation_fraction=0.2,
+                eta0=0.01
             )
         )
+    
+    def fit(self, x, y):
+        self.model.fit(x, y)
+        return self.model
        
 class XGBoost(ModelBoneStructure):
     def __init__(self, experiment_name):
@@ -56,3 +63,7 @@ class XGBoost(ModelBoneStructure):
             )
         )
         
+    def fit(self, x, y):
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, shuffle=True)  
+        self.model.fit(x_train, y_train, eval_set=[(x_test, y_test)], xgb_model=self.model.get_booster()) 
+        return self.model

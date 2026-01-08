@@ -3,6 +3,7 @@ logs/
 data/
 prefect/
 mlruns/
+mlartifacts/
 evaluation/
 __pycache__/
 src/__pycache__/

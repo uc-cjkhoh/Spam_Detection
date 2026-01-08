@@ -1,8 +1,12 @@
 import pandas as pd  
+import numpy as np
 import re
 import emoji  
- 
-        
+
+from prefect import task
+from prefect.cache_policies import NO_CACHE 
+
+@task(name='Text Normalization', cache_policy=NO_CACHE)        
 def get_normalized_messages(data: pd.DataFrame, target_column: str) -> pd.DataFrame:
     """
     Normalize message structure
@@ -23,4 +27,9 @@ def get_normalized_messages(data: pd.DataFrame, target_column: str) -> pd.DataFr
         return message.to_list()
     except KeyError:
         raise KeyError('Invalid column, check if column_name and payload_column is the same in ./configs/config.yaml') 
-        
+    
+
+@task(name='Sentence Embeddings', cache_policy=NO_CACHE)
+def embed_messages(embedding_model, messages: list):
+    return np.asarray(embedding_model.embed_documents(messages))
+

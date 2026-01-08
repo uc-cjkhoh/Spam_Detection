@@ -7,11 +7,10 @@ import os
  
 from prefect import flow, task 
 from prefect.cache_policies import NO_CACHE
-from sklearn.decomposition import PCA 
-from sklearn.model_selection import train_test_split
+from sklearn.decomposition import PCA  
 from imblearn.over_sampling import SMOTE
 
-from src.data_loader.preprocessing import get_normalized_messages  
+from src.data_loader.preprocessing import get_normalized_messages, embed_messages
 from src.config_folder.config_loader import get_config
 from src.utils.util import setup_core_instances, create_required_folder_file, update_metadata, finish_labelling
 from src.ml.model_training import SGD, XGBoost
@@ -25,25 +24,6 @@ def setup_environment():
     metadata = db.run_query(config.metadata.query, columns=config.metadata.column_name) 
     update_metadata(config, metadata)
     return config, db, embedding_model, faiss, metadata
-
- 
-@task(name="Overlap with Least Confidence Embeddings", cache_policy=NO_CACHE)
-def overlapping_embeddings(db, faiss, new_batch_mtds, new_batch_embeddings, max_n = 5000):  
-    if faiss and faiss.index:
-        query = f"SELECT row_id, id, datetime FROM sms_spam_cd.metadata_result WHERE label_status = 'psuedo_label' ORDER BY confidence_score ASC LIMIT {max_n}"
-        metadata = db.run_query(query, columns=['row_id', 'id', 'datetime']) 
-        least_confidence_embeddings = faiss.index.index.reconstruct_batch(metadata['row_id'].tolist())
-        
-        combined_mtds = pd.concat([metadata, new_batch_mtds])
-        combined_embeddings = np.concatenate([least_confidence_embeddings, new_batch_embeddings])
-        return combined_mtds, combined_embeddings
-    else:
-        return new_batch_mtds, new_batch_embeddings
-   
-       
-@task(name='Sentence Embeddings', cache_policy=NO_CACHE)
-def embed_messages(embedding_model, messages: list):
-    return np.asarray(embedding_model.embed_documents(messages))
 
 
 @task(name="Dimension Reduction", cache_policy=NO_CACHE)
@@ -94,34 +74,24 @@ def oversampling(x, y):
 
 @task(name='Model Training', cache_policy=NO_CACHE)
 def train_models(config, args, db, embedding_model, model):
-    data = load_data(db, config)
-     
+    data = load_data(db, config) 
     _, embeddings = get_embeddings(config, data, embedding_model)
     
     x = dimension_reduction(embeddings)
-    y = data.loc[:, args.target_column]
+    y = data.loc[:, args.target_column].astype(int)
     
-    resampled_x, resampled_y = oversampling(x, y)
-
-    if type(model).__name__ == 'XGBClassifier':
-        x_train, x_test, y_train, y_test = train_test_split(resampled_x, resampled_y, test_size=0.2, shuffle=True)  
-        model = model.fit(x_train, y_train, eval_set=[(x_test, y_test)], xgb_model=model.get_booster()) 
-    elif type(model).__name__ == 'SGDClassifier':
-        # require loop to perform partial fit 
-        model = model.fit(resampled_x, resampled_y)
-    
-    # save model
+    resampled_x, resampled_y = oversampling(x, y) 
+    model = model.fit(resampled_x, resampled_y)
+  
     with mlflow.start_run(run_name='Initialize Model'): 
         mlflow.log_param('embedding_model', config.models.text_embedding.model_name)
         mlflow.log_param('model_parameters', model.get_params())
         mlflow.sklearn.log_model(
             sk_model=model,
             name=type(model).__name__,
-            registered_model_name=f'{type(model).__name__}_Model',
+            registered_model_name=f'{type(model).__name__}',
             input_example=resampled_x[:1]
         )
-     
-    return model
 
      
 @flow(name='Active Learning Pipeline')
@@ -142,18 +112,18 @@ def main(args):
         # 4. Load target model classes
         xgboost = XGBoost(config.mlflow_config.experiment_name)
         sgd = SGD(config.mlflow_config.experiment_name)
-        model_classes = [sgd, xgboost]
+        models = [sgd, xgboost]
         
-        days = db.run_query('select distinct day(current_datetime) from sms_spam_cd.metadata_result', columns=['day'])['day']
+        days = db.run_query('select distinct day(datetime) from sms_spam_cd.metadata_result', columns=['day'])['day']
         for day in days:
             evaluation = 0
             while evaluation < 0.8:  
-                for model_class in model_classes:
+                for model in models:
                     # 5. Initiate or train model
-                    model = train_models(config, args, db, embedding_model, model_class.model)
+                    model = train_models(config, args, db, embedding_model, model)
                     
                     # 6. Select stratified sample in this day, group by hour
-                    data = db.run_query(config.data.query.format(*(day, 2000)), columns=config.data.column_name)
+                    data = db.run_query(config.data.query.format(*(day, 1500)), columns=config.data.column_name)
             
                     # 7. Convert to vectors
                     _, embeddings = get_embeddings(config, data, embedding_model)
@@ -166,21 +136,25 @@ def main(args):
                     
                     # 10. Label them by confidence score
                     high_conf_ids = np.where(confidence_score >= 0.975)[0]
-                    uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), 1000)[:1000]
-                    
+                    uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), 1000)[:1000] 
                     label_status = np.zeros(confidence_score.shape)
                     label_status[high_conf_ids] = 1
                     label_status[uncertain_ids] = -1
                     
+                    # save result to mysql
                     db.save_to_mysql(
                         data=pd.DataFrame({
-                            'id': data['id'],  
+                            'id': data['id'],
                             'datetime': data['datetime'],
                             'spam_label': result,
                             'confidence_score': confidence_score,
                             'label_status': label_status
                         }).to_dict(orient='records')
                     )
+                
+                print('You can check result in MySQL and update labels')
+                input('Press `Enter` to process ...')
+                
                             
     except Exception as e:
         raise Exception(e)
