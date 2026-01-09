@@ -74,7 +74,7 @@ Pipeline procedure (high level)
 6. Select another batch of data with stratified sampling
 7. Classify those messages with the model
 8. Label high-confidence SMS as `pseudo` (confidence >= 0.975)
-9. Select ~1000 most-uncertain SMS (closest to 0.5) and mark for human labeling (`human`)
+9. Select ~2800 most-uncertain SMS (closest to 0.5) and mark for human labeling (`human`)
 10. Mark the remaining as unlabeled (`''`)
 11. Save results and update metadata
      - `database.save_to_mysql(...)` persists id, datetime, spam_label, confidence_score, label_status, model
@@ -114,11 +114,6 @@ pytest -q
 Development notes
 - The main orchestrator is `main.py`; adjust sample sizes, thresholds and model hyperparameters in `configs/config.yaml` or in `src/ml/model_training.py`.
 - If you hit sklearn errors like "eta0 must be > 0", ensure model parameters are valid before training (e.g., set `eta0 > 0` for SGD-based classifiers).
-
-Contact / next steps
-- If you'd like, I can also:
-  - Add embedding caching (Prefect cache key + persisted results).
-  - Add a `make` or `tox` task for running tests and linting.
 
 ---
 
