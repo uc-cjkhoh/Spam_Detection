@@ -1,10 +1,10 @@
+import os
+import sys
+import mlflow
+import argparse
 import numpy as np
 import pandas as pd 
-import argparse
-import mlflow
-import sys
-import os
- 
+
 from prefect import flow, task
 from prefect.cache_policies import NO_CACHE
 from sklearn.decomposition import PCA
@@ -12,7 +12,6 @@ from imblearn.over_sampling import SMOTE
 
 from src.data_loader.preprocessing import get_normalized_messages 
 from src.utils.util import setup_core_components, finish_labelling
-from src.ml.model_training import SGD, XGBoost
  
 
 @task(name='Setup environment', cache_policy=NO_CACHE) 
@@ -32,7 +31,7 @@ def setup_environment():
         
 @task(name='Download first batch data', cache_policy=NO_CACHE)
 def download_initial_data(config, db, filepath, target_column):
-    data = db.run_query(config.data.query, columns=config.data.column_name) 
+    data = db.get_records(config.data.query, columns=config.data.column_name) 
     data[target_column] = None 
     data.to_excel(filepath, index=False) 
   
@@ -57,8 +56,8 @@ def spam_classification(model, embeddings):
 @task(name='Load data', cache_policy=NO_CACHE)
 def load_data(db, config):
     initial_data = pd.read_excel(config.models.initial_data_filepath)
-    pseudo_data =  db.run_query(config.pseudo_query, columns=initial_data.columns)
-    human_data = db.run_query(config.human_query, columns=initial_data.columns)
+    pseudo_data =  db.get_records(config.pseudo_query, columns=initial_data.columns)
+    human_data = db.get_records(config.human_query, columns=initial_data.columns)
     train_data = pd.concat([initial_data, pseudo_data, human_data])
     return train_data
 
@@ -97,14 +96,20 @@ def main(args):
         config, database, _, embedding_model, _, model = setup_environment()  
          
         # skip the first train_models when module start if model exists 
-        if args.skip_initialization: 
+        if args.skip_initialization:
             train_models(config, args, database, embedding_model, model)
             
         # active learning pipeline
+        """
+            Problems List: 
+            1. What is the most suitable way to evaluate the model while lack of labeled data ?
+            2. What if I found out the previous model version do a better job and want to re-train starting from there ? 
+            3. 
+        """
         evaluation = 0
-        while evaluation < 0.8: 
+        while evaluation < 0.8:
             # Select stratified sample in this day, group by hour
-            data = database.run_query(config.data.query, columns=config.data.column_name)
+            data = database.get_records(config.data.query, columns=config.data.column_name)
     
             # Normalize message
             normalized_message = normalize_message(data, target_column=config.data.target_column)
@@ -119,11 +124,14 @@ def main(args):
             result, confidence_score = model.predict(scaled_embeddings), model.predict_proba(scaled_embeddings)
             
             # Label them by confidence score
-            high_conf_ids = np.where(confidence_score >= 0.975)[0]
-            uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), 2800)[:2800]
+            high_conf_ids = np.where(confidence_score >= args.threshold)[0]
+            uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), args.number_of_uncertain)[:args.number_of_uncertain]
             label_status = np.zeros(confidence_score.shape)
             label_status[high_conf_ids] = 1
             label_status[uncertain_ids] = -1
+            
+            # reset latch_batch value before update
+            database.run_statement('UPDATE sms_spam_cd.metadata_result SET last_batch = False')
             
             # save result to mysql
             database.save_to_mysql(
@@ -133,7 +141,8 @@ def main(args):
                     'spam_label': result,
                     'confidence_score': confidence_score,
                     'label_status': label_status,
-                    'model': type(model).__name__
+                    'model': type(model).__name__,
+                    'last_batch': [True] * len(data)
                 }).to_dict(orient='records')
             )
             
@@ -154,10 +163,12 @@ def main(args):
     
 if __name__ == '__main__': 
     p = argparse.ArgumentParser(description='SMS Spam Detection')
-    p.add_argument("--mlflow_uri", type=str, default='http://10.168.49.12:5000', help='override mlflow tracking uri, else uses ./mlruns')
-    p.add_argument("--experiment", type=str, default='SMS SPAM DETECTION', help='name of the experiment in mlflow')
-    p.add_argument('--target_column', type=str, default='spam_label', help='the column in database that indicate the type of sms (spam or ham)')
-    p.add_argument('--skip_initialization', type=bool, default=True, help='whether to skip model initialization')
+    p.add_argument('-u', '--mlflow_uri', type=str, default='http://10.168.49.12:5000', help='override mlflow tracking uri, else uses ./mlruns')
+    p.add_argument('-e', '--experiment', type=str, default='SMS SPAM DETECTION', help='name of the experiment in mlflow')
+    p.add_argument('-c', '--target_column', type=str, default='spam_label', help='the column in database that indicate the type of sms (spam or ham)')
+    p.add_argument('-s', '--skip_initialization', type=bool, default=True, help='whether to skip model initialization')
+    p.add_argument('-n', '--number_of_uncertain', type=int, default=2800, help='configure the number of uncertain message for human label')
+    p.add_argument('-t', '--threshold', type=float, default=0.975, help='configure the confidence score threshold')
     args = p.parse_args()
         
     mlflow.set_tracking_uri(args.mlflow_uri)

@@ -24,8 +24,12 @@ class Database:
             )
         except Exception as e:
             raise Exception(e)
+        
+    def run_statement(self, statement: str):
+        self.cur.execute(statement)
+        self.connector.commit()
       
-    def run_query(self, query, columns: list) -> pd.DataFrame:
+    def get_records(self, query, columns: list) -> pd.DataFrame:
         self.cur.execute(query)
         data = pd.DataFrame(self.cur.fetchall(), columns=columns)
         return data

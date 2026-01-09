@@ -37,7 +37,7 @@ def setup_core_components():
     
     model = SGD(config.mlflow_config.experiment_name)
      
-    metadata = database.run_query(config.metadata.query, columns=config.metadata.column_name) 
+    metadata = database.get_records(config.metadata.query, columns=config.metadata.column_name) 
      
     return config, database, metadata, embedding_model, vectorstore, model
  

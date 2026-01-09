@@ -26,11 +26,11 @@ def test_initialize_db_connection(mock_mysql):
     assert db.cur is mock_connector.cursor.return_value
 
 
-def test_run_query(mock_mysql):
+def test_get_records(mock_mysql):
     mock_connector, mock_cursor = mock_mysql
 
     db = Database("host", 3306, "user", "pw")
-    result = db.run_query(query="SELECT * FROM tbl", columns=["id", "name"])
+    result = db.get_records(query="SELECT * FROM tbl", columns=["id", "name"])
 
     mock_cursor.execute.assert_called_once_with("SELECT * FROM tbl")
     assert isinstance(result, pd.DataFrame)
