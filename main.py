@@ -100,12 +100,6 @@ def main(args):
             train_models(config, args, database, embedding_model, model)
             
         # active learning pipeline
-        """
-            Problems List: 
-            1. What is the most suitable way to evaluate the model while lack of labeled data ?
-            2. What if I found out the previous model version do a better job and want to re-train starting from there ? 
-            3. 
-        """
         evaluation = 0
         while evaluation < 0.8:
             # select stratified sample in this day, group by hour

@@ -1,38 +1,27 @@
-[Current Version]
-1. Sample data are selected by hourly
-2. Developer manually label the first hour data
-2. Initialize model with first hour of data
-3. Select the next hour of data
-4. Classify the SMS with the Initialized model
-5. Separate result by confidence score
-    -> if the model return confidence score greater than 0.9 then fit to the model else skip those SMS
-6. Repeat step 3 - 5
+[Current Pipeline]
+1. Setup required components (database, model, etc)
+2. Check if has existing model
+    -> if no
+        -> Stratified sampling by time of day of specific day
+        -> Save then in local as .xlsx (Excel)
+        -> Terminate module
+        -> Developer manually label the first batch of data
+        -> Re-run the module, move to Step 1
+    -> if yes:
+        -> Initialize or Train Model
+3. Select another batch of data with stratified sampling
+4. Normalize data
+5. Convert data to vectors
+6. Perform dimension reduction
+7. Classify them with the model
+8. Label high confidence sms as 'pseudo', confidenec score >= <threshold>
+9. Label manually <n> uncertain sms, where their confidence score should be closest to |p - 0.5| as 'human'
+10. Label the rest as '' 
+11. Save or update metadata of the result and data 
+12. Repeat step 3 - 11
 
-
-[Alternative 1]
-[/] 1. Setup required components 
-[/] 2. Stratified sampling by time of day of specific day 
-[/] 3. Save then in local as .xlsx (Excel)
-[/] 4. Developer manually label the first batch of data
-[/] 5. Initialize or Train model
-[]      -> make sure the data is unbias [] and balance []
-[/] 6. Select another batch of data with stratified sampling
-[/] 7. Classify them with the model
-[/] 8. Label high confidence sms as 'pseudo', confidenec score >= 0.975
-[/] 9. Label manually 1000 uncertain sms, where their confidence score should be closest to |p - 0.5| as 'human'
-[/] 10. Label the rest as '' 
-[/] 11. Save or update metadata of the result and data 
-[/] 12. Repeat step 6 - 11
-
-In step 11, the data to save includes:
-    a. row_id (auto increment id for table)
-    b. id (id of the message)
-    c. datetime (the time the message sent)
-    d. spam_label (result of model)
-    e. confidence_score (how confidence the model is)
-    f. label_status
-        -> Currently, there are 3 kinds of status: [1, -1, 0] 
-        -> '1' indicates it requires human manully labelling 
-        -> '-1' indicates it has been labeled by model with high confidence score
-        -> '0' indicates it has moderate confidence score, still have a chance to be selected as a sample data
-    g. model (the model name)
+ 
+[Problems] 
+1. What is the most suitable way to evaluate the model while lack of labeled data ?
+2. What if I found out the previous model version do a better job and want to re-train starting from there ? 
+3.  
