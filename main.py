@@ -108,22 +108,22 @@ def main(args):
         """
         evaluation = 0
         while evaluation < 0.8:
-            # Select stratified sample in this day, group by hour
+            # select stratified sample in this day, group by hour
             data = database.get_records(config.data.query, columns=config.data.column_name)
     
-            # Normalize message
+            # normalize message
             normalized_message = normalize_message(data, target_column=config.data.target_column)
     
-            # Convert to vectors
+            # convert to vectors
             _, embeddings = get_embeddings(normalized_message, embedding_model)
             
-            # Dimension Reduction            
+            # dimension reduction            
             scaled_embeddings = dimension_reduction(embeddings)
     
-            # Classification
+            # classification
             result, confidence_score = model.predict(scaled_embeddings), model.predict_proba(scaled_embeddings)
             
-            # Label them by confidence score
+            # label them by confidence score
             high_conf_ids = np.where(confidence_score >= args.threshold)[0]
             uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), args.number_of_uncertain)[:args.number_of_uncertain]
             label_status = np.zeros(confidence_score.shape)
@@ -149,12 +149,12 @@ def main(args):
             # update model
             train_models(config, args, database, embedding_model, model)
         
+            # allow user to label without terminate module
             print('Temporary pause for data checking ...')
             user_input = input('Press any key to process or `q` to quit ...')
             if user_input == 'q':
                 sys.exit('Program terminated')
                 
-                            
     except Exception as e:
         raise Exception(e)
     finally:            
