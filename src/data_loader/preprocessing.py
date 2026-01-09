@@ -1,5 +1,4 @@
 import pandas as pd  
-import numpy as np
 import re
 import emoji  
 
@@ -28,8 +27,4 @@ def get_normalized_messages(data: pd.DataFrame, target_column: str) -> pd.DataFr
     except KeyError:
         raise KeyError('Invalid column, check if column_name and payload_column is the same in ./configs/config.yaml') 
     
-
-@task(name='Sentence Embeddings', cache_policy=NO_CACHE)
-def embed_messages(embedding_model, messages: list):
-    return np.asarray(embedding_model.embed_documents(messages))
-
+ 

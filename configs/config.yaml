@@ -28,14 +28,14 @@ data:
         current_datetime,
         payload, 
         ROW_NUMBER() OVER (
-            PARTITION BY HOUR(current_datetime)
+            PARTITION BY day(current_datetime), HOUR(current_datetime)
             ORDER BY RAND()
         ) as rn
     FROM
         sms_spam_cd.data_tdr_spam_filter 
-    where	
-    	day(current_datetime) in ({})
-    ) 
+    where
+    	HOUR(current_datetime) between 10 and 13
+    )
     SELECT
         id,
         current_datetime,
@@ -43,7 +43,7 @@ data:
     FROM
         StratifiedData
     WHERE
-        rn <= {}'
+        rn <= 1000'
   column_name: ['id', 'datetime', 'payload']
   target_column: 'payload' # specific the main column that listed in `column_name`
   metadata_column: ['id', 'datetime']
