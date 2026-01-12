@@ -1,8 +1,14 @@
 import mlflow
+import numpy as np
 
 from abc import ABC
+
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import train_test_split
+from sklearn.utils.validation import check_is_fitted
+from sklearn.exceptions import NotFittedError
+from sklearn.metrics import log_loss
+
 from xgboost import XGBClassifier
 from prefect import task
 from prefect.cache_policies import NO_CACHE
@@ -52,7 +58,41 @@ class SGD(ModelBoneStructure):
     
     @task(name='Fit Model', cache_policy=NO_CACHE)
     def fit(self, x, y):
-        self.model.fit(x, y)
+        try:
+            check_is_fitted(self.model)
+            
+            x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, shuffle=True)
+            
+            classes = [0, 1]
+            best_loss = None
+            epochs_no_prove = 0
+            patience = 5
+            epochs = 500
+            
+            for i in epochs:
+                batch_size = len(x_train) // 10
+                batch_x = np.random.shuffle(x_train.copy())[:batch_size]
+                batch_y = np.random.shuffle(y_train.copy())[:batch_size]
+            
+                # training
+                self.model.partial_fit(batch_x.reshape(-1, 1), batch_y, classes=classes)
+                  
+                # batch evaluation
+                y_pred = self.predict_proba(x_test)
+                loss = log_loss(y_test, y_pred)
+                print(f'[Epochs {i}] Log Loss: {loss:.5f}')
+                
+                if best_loss is None or loss < best_loss:
+                    best_loss = y_pred
+                else:
+                    epochs_no_prove += 1
+            
+                if epochs_no_prove >= patience:
+                    break
+ 
+        except NotFittedError as e:
+            self.model.fit(x, y)
+            
         return self.model
     
     
@@ -69,6 +109,12 @@ class XGBoost(ModelBoneStructure):
         
     @task(name='Fit Model', cache_policy=NO_CACHE)
     def fit(self, x, y):
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, shuffle=True)  
-        self.model.fit(x_train, y_train, eval_set=[(x_test, y_test)], xgb_model=self.model.get_booster()) 
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, shuffle=True)
+        
+        try:
+            check_is_fitted(self.model)
+            self.model.fit(x_train, y_train, eval_set=[(x_test, y_test)], xgb_model=self.model.get_booster()) 
+        except NotFittedError as e: 
+            self.model.fit(x_train, y_train, eval_set=[(x_test, y_test)]) 
+            
         return self.model

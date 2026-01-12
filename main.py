@@ -6,8 +6,9 @@ import numpy as np
 import pandas as pd 
 
 from prefect import flow, task
-from prefect.cache_policies import NO_CACHE
+from prefect.cache_policies import NO_CACHE 
 from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split 
 from imblearn.over_sampling import SMOTE
 
 from src.data_loader.preprocessing import get_normalized_messages 
@@ -75,16 +76,17 @@ def train_models(config, args, db, embedding_model, model):
     x = dimension_reduction(embeddings)
     y = data.loc[:, args.target_column].astype(int)
     
-    resampled_x, resampled_y = oversampling(x, y) 
-    model = model.fit(resampled_x, resampled_y)
-  
+    resampled_x, resampled_y = oversampling(x, y)
+ 
+    model_instance = model.fit(resampled_x, resampled_y)
+       
     with mlflow.start_run(run_name='Build/Update Model'): 
         mlflow.log_param('embedding_model', config.models.text_embedding.model_name)
-        mlflow.log_param('model_parameters', model.get_params())
+        mlflow.log_param('model_parameters', model_instance.get_params())
         mlflow.sklearn.log_model(
-            sk_model=model,
-            name=type(model).__name__,
-            registered_model_name=f'{type(model).__name__}',
+            sk_model=model_instance,
+            name=type(model_instance).__name__,
+            registered_model_name=f'{type(model_instance).__name__}',
             input_example=resampled_x[:1]
         )
  
@@ -99,9 +101,8 @@ def main(args):
         if args.skip_initialization:
             train_models(config, args, database, embedding_model, model)
             
-        # active learning pipeline
-        evaluation = 0
-        while evaluation < 0.8:
+        # active learning pipeline 
+        while True:
             # select stratified sample in this day, group by hour
             data = database.get_records(config.data.query, columns=config.data.column_name)
     

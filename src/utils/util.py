@@ -5,7 +5,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 from src.data_loader.connection import Database
 from src.vector_database.vectorstore import VectorStore 
-from src.ml.model_training import SGD 
+from src.ml.model_training import SGD, XGBoost
 from src.config_folder.config_loader import get_config 
  
 def setup_core_components(): 
@@ -35,7 +35,7 @@ def setup_core_components():
         embedding=embedding_model
     )
     
-    model = SGD(config.mlflow_config.experiment_name)
+    model = SGD(config.mlflow_config.experiment_name) 
      
     metadata = database.get_records(config.metadata.query, columns=config.metadata.column_name) 
      
