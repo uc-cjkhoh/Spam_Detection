@@ -57,11 +57,9 @@ class SGD(ModelBoneStructure):
         )
     
     @task(name='Fit Model', cache_policy=NO_CACHE)
-    def fit(self, x, y):
+    def fit(self, x, y, eval_set):
         try:
             check_is_fitted(self.model)
-            
-            x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, shuffle=True)
             
             classes = [0, 1]
             best_loss = None
@@ -70,16 +68,16 @@ class SGD(ModelBoneStructure):
             epochs = 500
             
             for i in epochs:
-                batch_size = len(x_train) // 10
-                batch_x = np.random.shuffle(x_train.copy())[:batch_size]
-                batch_y = np.random.shuffle(y_train.copy())[:batch_size]
+                batch_size = len(x) // 10
+                batch_x = np.random.shuffle(x.copy())[:batch_size]
+                batch_y = np.random.shuffle(y.copy())[:batch_size]
             
                 # training
                 self.model.partial_fit(batch_x.reshape(-1, 1), batch_y, classes=classes)
                   
                 # batch evaluation
-                y_pred = self.predict_proba(x_test)
-                loss = log_loss(y_test, y_pred)
+                y_pred = self.predict_proba(eval_set[0])
+                loss = log_loss(eval_set[1], y_pred)
                 print(f'[Epochs {i}] Log Loss: {loss:.5f}')
                 
                 if best_loss is None or loss < best_loss:

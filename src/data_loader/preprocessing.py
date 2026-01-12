@@ -1,11 +1,7 @@
 import pandas as pd  
 import re
 import emoji  
-
-from prefect import task
-from prefect.cache_policies import NO_CACHE 
-
-@task(name='Text Normalization', cache_policy=NO_CACHE)        
+ 
 def get_normalized_messages(data: pd.DataFrame, target_column: str) -> pd.DataFrame:
     """
     Normalize message structure
