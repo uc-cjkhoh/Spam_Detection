@@ -1,23 +1,4 @@
-# server configuration
-server: 
-  source: 'mysql'
-  host: "10.168.51.196"
-  port: 3306
-  user: 'unified'
-  password: 'unified'
-
-# setup progress log
-progress_log: 
-  folder: 'logs/progress'
-  files:
-    finished: 'logs/progress/label_metadata.xlsx'
-    unfinished: 'logs/progress/unlabel_metadata.xlsx'
-
-# define model to perform spam detection
-models: 
-  text_embedding:
-    model_name: "jinaai/jina-embeddings-v3"
-  initial_data_filepath: './data/initialization.xlsx'
+initial_data_filepath: './data/initialization.xlsx'
  
 # quert to select subdata
 data: 
@@ -45,8 +26,7 @@ data:
     WHERE
         rn <= 1000'
   column_name: ['id', 'datetime', 'payload']
-  target_column: 'payload' # specific the main column that listed in `column_name`
-  metadata_column: ['id', 'datetime']
+  target_column: 'payload'
 
 # define population data's metadata
 metadata:
@@ -59,16 +39,7 @@ metadata:
     FROM 
       sms_spam_cd.data_tdr_spam_filter'
   column_name: ['year', 'month', 'day', 'hour'] 
- 
-# define where vectorstores locate
-vectorstore:
-  directory: './data/vector'
-  filename: 'sms_embeddings'
-
-# define experiment and model name for this project
-mlflow_config:
-  experiment_name: 'SMS SPAM DETECTION'
-
+  
 pseudo_query: 
   "select 
     mr.id,

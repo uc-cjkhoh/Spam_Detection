@@ -11,13 +11,13 @@ from src.config_folder.config_loader import get_config
 def setup_core_components(): 
     config = get_config() 
     
-    create_required_folder_file(config)
+    create_required_folder_file()
     
     database = Database(
-        host=config.server.host,
-        port=config.server.port,
-        user=config.server.user,
-        password=config.server.password
+        host="10.168.51.196",
+        port=3306,
+        user='unified',
+        password='unified'
     )
     
     embedding_model = HuggingFaceEmbeddings(
@@ -30,31 +30,37 @@ def setup_core_components():
     )
     
     vectorstore = VectorStore(
-        directory=config.vectorstore.directory, 
-        filename=config.vectorstore.filename,
+        directory='./data/vector', 
+        filename='sms_embeddings',
         embedding=embedding_model
     )
     
-    model = SGD(config.mlflow_config.experiment_name) 
+    model = SGD('SMS SPAM DETECTION') 
      
     metadata = database.get_records(config.metadata.query, columns=config.metadata.column_name) 
      
     return config, database, metadata, embedding_model, vectorstore, model
  
-def create_required_folder_file(config: dict):  
+def create_required_folder_file():  
     # create directories 
-    os.makedirs(config.progress_log.folder, exist_ok=True)
-    os.makedirs(config.vectorstore.directory, exist_ok=True)
+    # os.makedirs('logs/progress', exist_ok=True)
+    os.makedirs('./data/vector', exist_ok=True)
+    os.makedirs('./logs/evaluation', exist_ok=True)
     
-    # create files
-    if not os.path.isfile(config.progress_log.files.finished):
-        pd.DataFrame(columns=config.metadata.column_name).to_excel(
-            config.progress_log.files.finished, index=False
-        )
+    # # create files
+    # if not os.path.isfile('logs/progress/label_metadata.xlsx'):
+    #     pd.DataFrame(columns=['year', 'month', 'day', 'hour']).to_excel(
+    #         'logs/progress/label_metadata.xlsx', index=False
+    #     )
         
-    if not os.path.isfile(config.progress_log.files.unfinished):
-        pd.DataFrame(columns=config.metadata.column_name).to_excel(
-            config.progress_log.files.unfinished, index=False
+    # if not os.path.isfile('logs/progress/unlabel_metadata.xlsx'):
+    #     pd.DataFrame(columns=['year', 'month', 'day', 'hour']).to_excel(
+    #         'logs/progress/unlabel_metadata.xlsx', index=False
+    #     ) 
+         
+    if not os.path.isfile('logs/evaluation/evaluation.xlsx'):
+        pd.DataFrame(columns=['Model', 'Accuracy', 'Precision', 'Recall', 'F1', 'Loss']).to_excel(
+            'logs/evaluation/evaluation.xlsx', index=False
         ) 
  
 def finish_labelling(filepath: str, label_column: str):
@@ -64,3 +70,9 @@ def finish_labelling(filepath: str, label_column: str):
             if data[label_column].notna().all(): 
                 return True 
     return False
+
+def save_evaluation(new_data):
+    filepath = "./logs/evaluation/evaluation.xlsx"
+    file = pd.read_excel(filepath)
+    file = pd.concat([file, new_data], ignore_index=True)
+    file.to_excel(filepath, index=False)

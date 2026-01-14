@@ -8,12 +8,12 @@ import pandas as pd
 from prefect import flow, task
 from prefect.cache_policies import NO_CACHE 
 from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split 
-from sklearn.utils.validation import check_is_fitted
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, log_loss
 from imblearn.over_sampling import SMOTE
 
 from src.data_loader.preprocessing import get_normalized_messages 
-from src.utils.util import setup_core_components, finish_labelling
+from src.utils.util import setup_core_components, finish_labelling, save_evaluation
  
 
 @flow(name='Setup environment') 
@@ -27,32 +27,25 @@ def setup_environment():
     config, database, metadata, embedding_model, vectorstore, model = setup_core_components()  
      
     # Download first batch of stratified sample in local
-    if not os.path.exists(config.models.initial_data_filepath): 
-        download_initial_data(config, database, config.models.initial_data_filepath, args.target_column)
+    if not os.path.exists(config.initial_data_filepath): 
+        download_initial_data(config, database, config.initial_data_filepath, args.target_column)
         sys.exit('Please label data manually before proceeding')
     
     # Check if finish labelling first batch of data
-    if not finish_labelling(config.models.initial_data_filepath, args.target_column):
-        raise ValueError(f"Please finish labelling the data in {config.models.initial_data_filepath}")
+    if not finish_labelling(config.initial_data_filepath, args.target_column):
+        sys.exit(f"Please finish labelling the data in {config.initial_data_filepath}")
     
     return config, database, metadata, embedding_model, vectorstore, model
          
-@task(name='Initialize Model', cache_policy=NO_CACHE)
-def initialize_model(config, db, embedding_model, model):
-    x, y = get_train_data(config, db, embedding_model)
-    train_models(model, x, y)      
-
 @task(name='Spam classification', cache_policy=NO_CACHE)
 def spam_classification(model, embeddings): 
     return model.predict(embeddings), model.predict_proba(embeddings).max(axis=1)
 
 @task(name='Model training', cache_policy=NO_CACHE)
-def train_models(model, x, y):
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, shuffle=True)
-       
-    model_instance = model.fit(x_train, y_train, eval_set=[x_test, y_test])
-       
-    with mlflow.start_run(run_name='Build/Update Model'): 
+def train_models(model, x, y, skip_initialization):
+    model_instance = model.fit(x, y, skip_initialization)
+    
+    with mlflow.start_run(run_name='Build/Update Model'):
         mlflow.log_param('model_parameters', model_instance.get_params())
         mlflow.sklearn.log_model(
             sk_model=model_instance,
@@ -60,7 +53,23 @@ def train_models(model, x, y):
             registered_model_name=f'{type(model_instance).__name__}',
             input_example=x[:1]
         )
- 
+
+@task(name='Model Evaluation', cache_policy=NO_CACHE)
+def evaluate_model(model, x, y_true):
+    y_pred = model.predict(x)
+    confidence_score = model.predict_proba(x)
+    
+    result = pd.DataFrame({
+        'Model': f'{type(model.model_name).__name__}',
+        'Accuracy': [accuracy_score(y_true, y_pred)],
+        'Precision': [precision_score(y_true, y_pred)],
+        'Recall': [recall_score(y_true, y_pred)],
+        'F1': [f1_score(y_true, y_pred)],
+        'Loss': [log_loss(y_true, confidence_score)]
+    })
+    
+    save_evaluation(result)
+
 @flow(name='Data Preprocessing')
 def preprocess_data(embedding_model, message_df, target_column):
     @task(name="Dimension reduction", cache_policy=NO_CACHE)
@@ -91,13 +100,16 @@ def get_train_data(config, db, embedding_model):
         resampled_x, resampled_y = smote.fit_resample(x, y)    
         return resampled_x, resampled_y 
     
-    # combine labeled data
-    initial_data = pd.read_excel(config.models.initial_data_filepath)
-    pseudo_data =  db.get_records(config.pseudo_query, columns=initial_data.columns)
-    human_data = db.get_records(config.human_query, columns=initial_data.columns)
-    train_data = pd.concat([initial_data, pseudo_data, human_data])
+    @task(name='Read Local File / Execute SQL', cache_policy=NO_CACHE)
+    def gather_labeled_data():
+        initial_data = pd.read_excel(config.initial_data_filepath)
+        pseudo_data =  db.get_records(config.pseudo_query, columns=initial_data.columns)
+        human_data = db.get_records(config.human_query, columns=initial_data.columns)
+        train_data = pd.concat([initial_data, pseudo_data, human_data])
+        train_data = train_data.fillna('')
+        return train_data
     
-    train_data = train_data.fillna('')
+    train_data = gather_labeled_data()
       
     _, scaled_embeddings = preprocess_data(embedding_model, train_data, target_column=config.data.target_column)
       
@@ -105,7 +117,7 @@ def get_train_data(config, db, embedding_model):
 
     x, y = oversampling(scaled_embeddings, labels)
             
-    return x, y 
+    return x, y
  
 @flow(name='Active Learning Pipeline')
 def main(args):   
@@ -113,17 +125,20 @@ def main(args):
         # Setup necessary components
         config, database, _, embedding_model, vectorstore, model = setup_environment()  
         
-        # skip the first train_models when module start if model exists
-        check_is_fitted(model.model)
-        
         while True:
             # get training data
             x, y = get_train_data(config, database, embedding_model)
             
-            # update model
-            train_models(model, x, y)
+            # split data to train, test data
+            x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, shuffle=True)
             
-            # select stratified sample in this day, group by hour
+            # build or update model
+            train_models(model, x_train, y_train, args.skip_initialization)
+            
+            # evaluate model
+            evaluate_model(model, x_test, y_test)
+            
+            # stratified sampling
             data = database.get_records(config.data.query, columns=config.data.column_name)
     
             # preprocess data
@@ -132,14 +147,14 @@ def main(args):
             # classification
             result, confidence_score = model.predict(scaled_embeddings), model.predict_proba(scaled_embeddings)
             
-            # label them by confidence score
+            # get label status
             high_conf_ids = np.where(confidence_score >= args.threshold)[0]
             uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), args.number_of_uncertain)[:args.number_of_uncertain]
             label_status = np.zeros(confidence_score.shape)
             label_status[high_conf_ids] = 1
             label_status[uncertain_ids] = -1
             
-            # reset latch_batch value before update
+            # reset last_batch column
             database.run_statement('UPDATE sms_spam_cd.metadata_result SET last_batch = False')
             
             # save result to mysql
@@ -157,11 +172,12 @@ def main(args):
             
             # allow user to label without terminate module
             print('Temporary pause for data checking ...')
-            user_input = input('Press any key to process or `q` to quit ...')
+            user_input = input('Press any key to process or press `q` to quit ...')
             if user_input == 'q':
                 break
-    except:
-        initialize_model(config, database, embedding_model, model)
+            
+    except Exception as e:
+        raise Exception(e)
     finally:
         database.close_connection() 
                

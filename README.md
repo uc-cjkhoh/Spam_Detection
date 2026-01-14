@@ -60,26 +60,25 @@ Project layout (important files)
 
 Pipeline procedure (high level)
 
-1. Setup required components
-    - `setup_environment()` loads config, DB connection, embedding model, vectorstore and model.
-2. Stratified sampling by time of day of a specific day
-    - Query database with `config.data.query` and perform stratified selection by hour.
-3. Save the initial batch locally as an Excel file
-    - `download_initial_data()` writes to `config.models.initial_data_filepath`.
-4. Developer manually labels the first batch of data
-    - Pipeline will halt until `finish_labelling()` returns true.
-5. Initialize or train model
-    - Compute embeddings, reduce dimension, oversample (SMOTE) and fit the model.
-    - Ensure the training data is unbiased (stratified) and balanced (SMOTE or other).
-6. Select another batch of data with stratified sampling
-7. Classify those messages with the model
-8. Label high-confidence SMS as `pseudo` (confidence >= 0.975)
-9. Select ~2800 most-uncertain SMS (closest to 0.5) and mark for human labeling (`human`)
-10. Mark the remaining as unlabeled (`''`)
-11. Save results and update metadata
-     - `database.save_to_mysql(...)` persists id, datetime, spam_label, confidence_score, label_status, model
-12. Repeat steps 6–11 until evaluation threshold reached (e.g., accuracy or other metric)
-
+1. Setup required components (database, model, etc)
+    - Check data folder if initial data batch exists 
+    - Check if the initial data batch has fully labeled
+2. Check if the model was fitted or not
+    - if no, fit initial data to model
+    - if yes, update model
+3. Perform stratified sampling
+4. Preprocess data
+    - Normalize data
+    - Convert data to vectors
+    - Perform dimension reduction
+5. Perform classification
+6. Label data by confidence score
+    - if confidence score >= threshold, label as `1`
+    - if confidence score < threshold, label N uncertain sms as `-1`, the reset as `0`
+        - uncertain sms determine by confidence score closer to |p - 0.5|
+7. Save model, update mysql  
+8. Repeat step 2 - 7
+ 
 Quickstart (local development)
 
 1. Create and activate virtualenv
@@ -109,7 +108,7 @@ Run unit tests with `pytest`:
 
 ```bash
 pytest -q
-```
+``` 
 
 Development notes
 - The main orchestrator is `main.py`; adjust sample sizes, thresholds and model hyperparameters in `configs/config.yaml` or in `src/ml/model_training.py`.
