@@ -36,10 +36,8 @@ def setup_core_components():
     )
     
     model = SGD('SMS SPAM DETECTION') 
-     
-    metadata = database.get_records(config.metadata.query, columns=config.metadata.column_name) 
-     
-    return config, database, metadata, embedding_model, vectorstore, model
+      
+    return config, database, embedding_model, vectorstore, model
  
 def create_required_folder_file():  
     # create directories 

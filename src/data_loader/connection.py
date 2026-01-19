@@ -56,11 +56,12 @@ class Database:
             metadata,
             Column('row_id', BigInteger, primary_key=True),
             Column('id', BigInteger, nullable=False),
-            Column('datetime', DateTime, nullable=False),
+            Column('datetime', DateTime, nullable=True),
             Column('spam_label', SmallInteger, nullable=True),
             Column('confidence_score', Double, nullable=True),
             Column('label_status', String(20), nullable=True),
-            Column('model', String(20), nullable=False),
+            Column('model', String(20), nullable=True),
+            Column('last_batch', Boolean, nullable=True),
             schema='sms_spam_cd'
         )
         
@@ -72,7 +73,9 @@ class Database:
             on_duplicate_key_statement = insert_statement.on_duplicate_key_update(
                 spam_label=insert_statement.inserted.spam_label,
                 confidence_score=insert_statement.inserted.confidence_score,
-                label_status=insert_statement.inserted.label_status
+                label_status=insert_statement.inserted.label_status,
+                last_batch=insert_statement.inserted.last_batch,
+                model=insert_statement.inserted.model
             )
             
             conn.execute(on_duplicate_key_statement)

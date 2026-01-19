@@ -1,10 +1,8 @@
-initial_data_filepath: './data/initialization.xlsx'
- 
 # quert to select subdata
 data: 
   query: 
     'WITH StratifiedData AS (
-    SELECT
+      SELECT
         id,
         current_datetime,
         payload, 
@@ -12,19 +10,19 @@ data:
             PARTITION BY day(current_datetime), HOUR(current_datetime)
             ORDER BY RAND()
         ) as rn
-    FROM
-        sms_spam_cd.data_tdr_spam_filter 
-    where
-    	HOUR(current_datetime) between 10 and 13
+      FROM
+          sms_spam_cd.data_tdr_spam_filter 
+      where
+        HOUR(current_datetime) between 10 and 13
     )
     SELECT
-        id,
-        current_datetime,
-        payload
+      id,
+      current_datetime,
+      payload
     FROM
-        StratifiedData
+      StratifiedData
     WHERE
-        rn <= 1000'
+      rn <= 1000'
   column_name: ['id', 'datetime', 'payload']
   target_column: 'payload'
 
@@ -40,26 +38,13 @@ metadata:
       sms_spam_cd.data_tdr_spam_filter'
   column_name: ['year', 'month', 'day', 'hour'] 
   
-pseudo_query: 
+labeled_data: 
   "select 
-    mr.id,
-    mr.datetime,
     data.payload,
     mr.spam_label
   from 
     sms_spam_cd.metadata_result mr 
     inner join sms_spam_cd.data_tdr_spam_filter data on mr.id = data.id 
   where
-    mr.label_status = 1"
-
-human_query:
-  "select 
-    mr.id,
-    mr.datetime,
-    data.payload,
-    mr.spam_label
-  from 
-    sms_spam_cd.metadata_result mr 
-    inner join sms_spam_cd.data_tdr_spam_filter data on mr.id = data.id 
-  where
-    mr.label_status = -1"
+    mr.label_status in (1, -1)"
+ 
