@@ -1,6 +1,6 @@
 # SMS Spam Detection Pipeline
 
-This repository implements an incremental SMS spam detection system using embeddings, vector storage, and online learning. The pipeline is orchestrated with Prefect and supports streaming data via Kafka.
+This repository implements an incremental SMS spam detection system using embeddings, vector storage, and online learning and trained in a teacher-student manner.
 
 ## Features
 

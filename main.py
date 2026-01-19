@@ -19,7 +19,7 @@ from src.utils.util import setup_core_components, save_evaluation
  
 @task(name='Setup environment', cache_policy=NO_CACHE) 
 def setup_environment(args):  
-    config, database, embedding_model, vectorstore, model = setup_core_components()
+    config, database, embedding_model, vectorstore, teacher, student = setup_core_components()
     
     # check initial data status
     initial_data = database.get_records(
@@ -45,7 +45,7 @@ def setup_environment(args):
         ] 
         vectorstore.write_index(documents)
         
-    return config, database, embedding_model, vectorstore, model
+    return config, database, embedding_model, vectorstore, teacher, student
 
 @task(name='Spam classification', cache_policy=NO_CACHE)
 def spam_classification(model, embeddings): 
@@ -164,19 +164,20 @@ def load_train_data(config, database, embedding_model, vectorstore):
 @flow(name='Active Learning Pipeline')
 def main(args):   
     try:
-        config, database, embedding_model, vectorstore, model = setup_environment(args)   
+        config, database, embedding_model, vectorstore, teacher, student = setup_environment(args)   
         
         # load train data
         x, y = load_train_data(config, database, embedding_model, vectorstore)
         
         # split data to train, test data
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, shuffle=True)
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.3, shuffle=True)
         
-        if not args.skip_first_training:
-            model = train_models(model, x_train, y_train, args.skip_initialization)
+        # initial teacher model if not skip
+        if args.skip_first_training:
+            teacher = train_models(teacher, x_train, y_train)
         
-        # evaluate model
-        evaluate_model(model, x_test, y_test)
+        # evaluate teacher model
+        evaluate_model(teacher, x_test, y_test)
         
         # stratified sampling
         data = stratified_sampling(config, database)
@@ -185,7 +186,7 @@ def main(args):
         scaled_embeddings = preprocess_data(embedding_model, data, target_column=config.data.target_column)
         
         # classification
-        result, confidence_score = spam_classification(model, scaled_embeddings)
+        result, confidence_score = spam_classification(teacher, scaled_embeddings)
         
         # prepare data to be store in mysql
         high_conf_ids = np.where(confidence_score >= args.threshold)[0]
@@ -193,13 +194,25 @@ def main(args):
         label_status = np.zeros(confidence_score.shape)
         label_status[high_conf_ids] = 1
         label_status[uncertain_ids] = -1 
+        
+        high_conf_embeddings, high_conf_labels = scaled_embeddings[high_conf_ids], result[high_conf_ids].reshape(-1, 1)
+        pseud_x, pseud_y = np.vstack((x_train, high_conf_embeddings)), np.vstack((y_train, high_conf_labels))
+        pseud_x, pseud_y = oversampling(pseud_x, pseud_y)
+        
+        # train student model 
+        student = train_models(student, pseud_x, pseud_y.reshape(-1, 1))
+        
+        # evaluate student model
+        evaluate_model(student, x_test, y_test)
+         
+        # save uncertainty from teacher model
         data_to_sql = pd.DataFrame({
             'id': data['id'],
             'datetime': data['datetime'],
             'spam_label': result,
             'confidence_score': confidence_score,
             'label_status': label_status,
-            'model': type(model).__name__,
+            'model': type(teacher).__name__,
             'last_batch': [1] * len(data)
         }).to_dict(orient='records')
         
@@ -217,10 +230,10 @@ def main(args):
 if __name__ == '__main__': 
     p = argparse.ArgumentParser(description='SMS Spam Detection')
     p.add_argument('-u', '--mlflow_uri', type=str, default='http://10.168.49.12:5000', help='override mlflow tracking uri, else uses ./mlruns')
-    p.add_argument('-e', '--experiment', type=str, default='SMS SPAM DETECTION', help='name of the experiment in mlflow')
+    p.add_argument('-e', '--experiment', type=str, default='SMS_SPAM_DETECTION_V3', help='name of the experiment in mlflow')
     p.add_argument('-c', '--target_column', type=str, default='spam_label', help='the column in database that indicate the type of sms (spam or ham)')
     p.add_argument('-s', '--skip_initialization', type=bool, default=True, help='whether to skip model initialization')
-    p.add_argument('-x', '--skip_first_training', type=bool, default=False, help='whether to skip the first training'),
+    p.add_argument('-x', '--skip_first_training', type=bool, default=True, help='whether to skip the first training'),
     p.add_argument('-n', '--number_of_uncertain', type=int, default=500, help='configure the number of uncertain message for human label')
     p.add_argument('-t', '--threshold', type=float, default=0.975, help='configure the confidence score threshold')
     args = p.parse_args()

@@ -35,9 +35,10 @@ def setup_core_components():
         embedding=embedding_model
     )
     
-    model = SGD('SMS SPAM DETECTION') 
+    teacher = SGD('Teacher') 
+    student = SGD('Student')
       
-    return config, database, embedding_model, vectorstore, model
+    return config, database, embedding_model, vectorstore, teacher, student
  
 def create_required_folder_file():  
     # create directories 

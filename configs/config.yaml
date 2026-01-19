@@ -28,7 +28,7 @@ data:
 
 # define population data's metadata
 metadata:
-  query: 
+  query:
     'SELECT DISTINCT
       YEAR(current_datetime), 
       MONTH(current_datetime), 
@@ -46,5 +46,5 @@ labeled_data:
     sms_spam_cd.metadata_result mr 
     inner join sms_spam_cd.data_tdr_spam_filter data on mr.id = data.id 
   where
-    mr.label_status in (1, -1)"
+    mr.label_status in (-1)"
  
