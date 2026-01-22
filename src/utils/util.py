@@ -8,7 +8,7 @@ from src.vector_database.vectorstore import VectorStore
 from src.ml.model_training import SGD, XGBoost
 from src.config_folder.config_loader import get_config 
  
-def setup_core_components(): 
+def setup_core_components(args): 
     config = get_config() 
     
     create_required_folder_file()
@@ -35,8 +35,8 @@ def setup_core_components():
         embedding=embedding_model
     )
     
-    teacher = SGD('Teacher') 
-    student = SGD('Student')
+    teacher = SGD(experiment_name=args.experiment, model_name='Teacher') 
+    student = SGD(experiment_name=args.experiment, model_name='Student')
       
     return config, database, embedding_model, vectorstore, teacher, student
  

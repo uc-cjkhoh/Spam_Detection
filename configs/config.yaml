@@ -13,7 +13,8 @@ data:
       FROM
           sms_spam_cd.data_tdr_spam_filter 
       where
-        HOUR(current_datetime) between 10 and 13
+        DAY(current_datetime) != 22 
+        and HOUR(current_datetime) between 10 and 13
     )
     SELECT
       id,

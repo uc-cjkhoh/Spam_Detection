@@ -8,7 +8,7 @@ import pandas as pd
 from prefect import flow, task
 from prefect.cache_policies import NO_CACHE 
 from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import RobustScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, log_loss
 from imblearn.over_sampling import SMOTE
 from langchain.schema import Document
@@ -19,14 +19,14 @@ from src.utils.util import setup_core_components, save_evaluation
  
 @task(name='Setup environment', cache_policy=NO_CACHE) 
 def setup_environment(args):  
-    config, database, embedding_model, vectorstore, teacher, student = setup_core_components()
+    config, database, embedding_model, vectorstore, teacher, student = setup_core_components(args)
     
     # check initial data status
     initial_data = database.get_records(
-        f'select {config.data.target_column}, {args.target_column} from sms_spam_cd.initial_data', 
+        f'select {config.data.target_column}, {args.target_column} from sms_spam_cd.initial_data where day(datetime) != 22', 
         columns=[config.data.target_column, args.target_column]
     ).squeeze()
-    
+      
     if initial_data[args.target_column].isna().sum():  
         sys.exit(f"Please finish labelling the data in table `sms_spam_cd.initial_data`")
 
@@ -34,8 +34,12 @@ def setup_environment(args):
     if len(os.listdir(vectorstore.directory)) > 0:
         vectorstore.load_index(folder_path=vectorstore.directory, index_name=vectorstore.filename)
     else:
-        payloads = initial_data.loc[:, config.data.target_column].to_list()
-        labels = initial_data.loc[:, args.target_column].to_list() 
+        labels = initial_data.pop(args.target_column)
+        features = get_normalized_messages(initial_data, config.data.target_column)
+        payloads = features.pop(config.data.target_column)
+        
+        features.to_csv('./data/initial_data_features.csv', index=False)
+        
         documents = [
             Document(
                 page_content=payload,
@@ -52,14 +56,14 @@ def spam_classification(model, embeddings):
     return model.predict(embeddings), model.predict_proba(embeddings)
 
 @task(name='Model training', cache_policy=NO_CACHE)
-def train_models(model, x, y, skip_initialization):
-    model_instance = model.fit(x, y, skip_initialization) 
+def train_models(model, x, y):
+    model_instance = model.fit(x, y) 
     with mlflow.start_run(run_name='Build/Update Model'):
         mlflow.log_param('model_parameters', model_instance.get_params())
         mlflow.sklearn.log_model(
             sk_model=model_instance,
-            name=type(model_instance).__name__,
-            registered_model_name=f'{type(model_instance).__name__}',
+            name=model.model_name,
+            registered_model_name=f'{model.model_name}',
             input_example=x[:1]
         )
     return model
@@ -88,7 +92,8 @@ def evaluate_model(model, x, y_true):
 
 @task(name='Stratified Sampling', cache_policy=NO_CACHE)
 def stratified_sampling(config, db):
-    return db.get_records(config.data.query, columns=config.data.column_name)
+    data = db.get_records(config.data.query, columns=config.data.column_name)
+    return data['id'], data['datetime'], data[['payload']]
     
 @task(name='Insert/Update MySQL', cache_policy=NO_CACHE)
 def update_db(db, data): 
@@ -113,10 +118,19 @@ def dimension_reduction(embeddings: np.ndarray):
     return scaled_embedding
 
 @task(name='Data Preprocessing', cache_policy=NO_CACHE)
-def preprocess_data(embedding_model, message_df, target_column):  
-    normalized_message = normalize_message(message_df, target_column=target_column) 
-    embeddings = sentence_embeddings(normalized_message, embedding_model)             
+def preprocess_data(embedding_model, sms_message: pd.DataFrame, target_column: str) -> np.ndarray:  
+    features = normalize_message(sms_message, target_column=target_column) 
+    
+    messages = features.pop(target_column)
+    embeddings = sentence_embeddings(messages.to_list(), embedding_model)             
     scaled_embeddings = dimension_reduction(embeddings)
+    
+    scaler = RobustScaler()
+    features[['feature_emoji_count', 'feature_length', 'feature_newline_count']] = scaler.fit_transform(
+        features[['feature_emoji_count', 'feature_length', 'feature_newline_count']]
+    )
+    
+    scaled_embeddings = np.hstack((features.to_numpy(), scaled_embeddings))
     return scaled_embeddings 
 
 @task(name='Oversampling', cache_policy=NO_CACHE)
@@ -129,37 +143,64 @@ def oversampling(x, y):
 def load_train_data(config, database, embedding_model, vectorstore): 
     @task(name='Load initial data', cache_policy=NO_CACHE)
     def load_initial_data():
-        initial_embeddings = vectorstore.faiss.index.reconstruct_n(0, -1)
-    
+        initial_embeddings = vectorstore.faiss.index.reconstruct_n(0, -1)  
+        scaled_initial_embeddings = dimension_reduction(initial_embeddings)
+        
+        initial_features = pd.read_csv('./data/initial_data_features.csv')
+        scaler = RobustScaler()
+        initial_features[['feature_emoji_count', 'feature_length', 'feature_newline_count']] = scaler.fit_transform(
+            initial_features[['feature_emoji_count', 'feature_length', 'feature_newline_count']]
+        )
+        
+        scaled_embeddings = np.hstack((initial_features.to_numpy(), scaled_initial_embeddings))
+
         docs = list(vectorstore.faiss.docstore._dict.values())    
         initial_labels = [list(doc.metadata.values()) for doc in docs]
         initial_labels = np.asarray(initial_labels).squeeze()
    
-        return initial_embeddings, initial_labels
+        return scaled_embeddings, initial_labels
    
     @task(name='Load MySQL data', cache_policy=NO_CACHE)
     def load_mysql_data():
-        pseudo_human_data = database.get_records(config.labeled_data, columns=[config.data.target_column, args.target_column])
-        ph_payload = pseudo_human_data.loc[:, config.data.target_column].to_list()
-        ph_embeddings = sentence_embeddings(ph_payload, embedding_model=embedding_model) 
-        ph_labels = pseudo_human_data.loc[:, args.target_column].to_numpy()
-        return ph_embeddings, ph_labels
+        mysql_data = database.get_records(config.labeled_data, columns=[config.data.target_column, args.target_column]) 
+        if len(mysql_data) == 0:
+            return np.array([]), np.array([])
+            
+        sql_labels = mysql_data.pop(args.target_column)
+        sql_embeddings = preprocess_data(
+            embedding_model=embedding_model,
+            sms_message=mysql_data, 
+            target_column=config.data.target_column
+        )
+        
+        return sql_embeddings, sql_labels
    
     initial_embeddings, initial_labels = load_initial_data()
-    ph_embeddings, ph_labels = load_mysql_data()
+    sql_embeddings, sql_labels = load_mysql_data()
 
-    if len(ph_embeddings) == 0:
-        initial_embeddings = dimension_reduction(initial_embeddings)
+    if len(sql_embeddings) == 0: 
         x, y = oversampling(initial_embeddings, initial_labels)
         return x, y
     else:
         # combine initial data with sql data
-        complete_train_embeddings = np.vstack((initial_embeddings, ph_embeddings))
-        complete_train_embeddings = dimension_reduction(complete_train_embeddings)
-        complete_train_labels = np.hstack((initial_labels, ph_labels)).reshape(-1, 1)
+        complete_train_embeddings = np.vstack((initial_embeddings, sql_embeddings)) 
+        complete_train_labels = np.hstack((initial_labels, sql_labels)).reshape(-1, 1)
         x, y = oversampling(complete_train_embeddings, complete_train_labels)
         return x, y
+
+@task(name='Load test data', cache_policy=NO_CACHE)
+def load_test_data(config, database, embedding_model):
+    test_data = database.get_records(
+        f'select {config.data.target_column}, {args.target_column} from sms_spam_cd.initial_data where day(datetime) = 22', 
+        columns=[config.data.target_column, args.target_column]
+    ).squeeze()
     
+    if test_data.shape[0] > 0:
+        label = test_data.pop(args.target_column).to_numpy().squeeze() 
+        embeddings = preprocess_data(embedding_model, test_data, target_column=config.data.target_column) 
+        return embeddings, label
+    else:
+        raise ValueError('Missing test data in sql table')
 
 @flow(name='Active Learning Pipeline')
 def main(args):   
@@ -167,23 +208,21 @@ def main(args):
         config, database, embedding_model, vectorstore, teacher, student = setup_environment(args)   
         
         # load train data
-        x, y = load_train_data(config, database, embedding_model, vectorstore)
-        
-        # split data to train, test data
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.3, shuffle=True)
-        
+        x_train, y_train = load_train_data(config, database, embedding_model, vectorstore)
+        x_test, y_test = load_test_data(config, database, embedding_model)
+         
         # initial teacher model if not skip
-        if args.skip_first_training:
+        if not args.skip_first_training:
             teacher = train_models(teacher, x_train, y_train)
         
         # evaluate teacher model
         evaluate_model(teacher, x_test, y_test)
         
         # stratified sampling
-        data = stratified_sampling(config, database)
+        data_id, data_dt, data_msg = stratified_sampling(config, database)
 
         # preprocess data
-        scaled_embeddings = preprocess_data(embedding_model, data, target_column=config.data.target_column)
+        scaled_embeddings = preprocess_data(embedding_model, data_msg, target_column=config.data.target_column)
         
         # classification
         result, confidence_score = spam_classification(teacher, scaled_embeddings)
@@ -195,8 +234,8 @@ def main(args):
         label_status[high_conf_ids] = 1
         label_status[uncertain_ids] = -1 
         
-        high_conf_embeddings, high_conf_labels = scaled_embeddings[high_conf_ids], result[high_conf_ids].reshape(-1, 1)
-        pseud_x, pseud_y = np.vstack((x_train, high_conf_embeddings)), np.vstack((y_train, high_conf_labels))
+        high_conf_embeddings, high_conf_labels = scaled_embeddings[high_conf_ids], result[high_conf_ids].squeeze()
+        pseud_x, pseud_y = np.vstack((x_train, high_conf_embeddings)), np.hstack((y_train, high_conf_labels))
         pseud_x, pseud_y = oversampling(pseud_x, pseud_y)
         
         # train student model 
@@ -207,20 +246,18 @@ def main(args):
          
         # save uncertainty from teacher model
         data_to_sql = pd.DataFrame({
-            'id': data['id'],
-            'datetime': data['datetime'],
+            'id': data_id,
+            'datetime': data_dt,
             'spam_label': result,
             'confidence_score': confidence_score,
             'label_status': label_status,
             'model': type(teacher).__name__,
-            'last_batch': [1] * len(data)
+            'last_batch': [1] * len(data_id)
         }).to_dict(orient='records')
         
         # update mysqlw
         update_db(database, data_to_sql)
-        
-        args.skip_first_training = False
- 
+         
     except Exception as e:
         raise Exception(e)
     finally:
@@ -233,8 +270,8 @@ if __name__ == '__main__':
     p.add_argument('-e', '--experiment', type=str, default='SMS_SPAM_DETECTION_V3', help='name of the experiment in mlflow')
     p.add_argument('-c', '--target_column', type=str, default='spam_label', help='the column in database that indicate the type of sms (spam or ham)')
     p.add_argument('-s', '--skip_initialization', type=bool, default=True, help='whether to skip model initialization')
-    p.add_argument('-x', '--skip_first_training', type=bool, default=True, help='whether to skip the first training'),
-    p.add_argument('-n', '--number_of_uncertain', type=int, default=500, help='configure the number of uncertain message for human label')
+    p.add_argument('-x', '--skip_first_training', type=int, default=0, help='whether to skip the first training'),
+    p.add_argument('-n', '--number_of_uncertain', type=int, default=100, help='configure the number of uncertain message for human label')
     p.add_argument('-t', '--threshold', type=float, default=0.975, help='configure the confidence score threshold')
     args = p.parse_args()
         

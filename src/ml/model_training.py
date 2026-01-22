@@ -1,13 +1,13 @@
 import mlflow
-import numpy as np
 
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.utils.validation import check_is_fitted
-from sklearn.exceptions import NotFittedError
-from sklearn.metrics import log_loss
-from xgboost import XGBClassifier
-from imblearn.over_sampling import SMOTE
+from sklearn.exceptions import NotFittedError 
+from xgboost import XGBClassifier 
+from sklearn.cluster import HDBSCAN
+from collections import Counter
+
 
 class ModelBoneStructure():
     def __init__(self, experiment_name, model_name, model): 
@@ -35,29 +35,31 @@ class ModelBoneStructure():
         return self.model_list
   
 class SGD(ModelBoneStructure):
-    def __init__(self, experiment_name):
+    def __init__(self, experiment_name, model_name):
         super().__init__(
             experiment_name=experiment_name,
-            model_name=SGDClassifier.__name__,
+            model_name=model_name,
             model=SGDClassifier(
                 loss='log_loss', 
-                class_weight='balanced',
-                early_stopping=True,
-                learning_rate='adaptive',
-                validation_fraction=0.2,
-                eta0=0.01
+                class_weight='balanced'
             )
         )
      
     def fit(self, x, y):
+        # hdb = HDBSCAN(min_cluster_size=3)
+        # cluster_id = hdb.fit_predict(x)
+        
+        # counts = Counter(cluster_id)
+        # counts.pop(-1, None)
+          
         self.model.fit(x, y)
         return self.model
     
 class XGBoost(ModelBoneStructure):
-    def __init__(self, experiment_name):
+    def __init__(self, experiment_name, model_name):
         super().__init__(
             experiment_name=experiment_name, 
-            model_name=XGBClassifier.__name__,
+            model_name=model_name,
             model=XGBClassifier(
                 n_estimators=500,
                 base_score=0.5
