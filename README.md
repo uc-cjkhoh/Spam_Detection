@@ -115,19 +115,3 @@ black src/ tests/ main.py
 isort src/
 ruff check --fix src/
 ```
-
-Contributing
-
-- Open issues for bugs or feature requests. Create PRs against `main` with tests where appropriate.
-
-License
-
-This repository follows the project's existing licensing policy. Check the repository root for license details.
-
----
-
-If you'd like, I can:
-- Patch the code to persist and reuse PCA/Scaler, replace raw `SGDClassifier` with a calibrated pipeline, and update MLflow logging to avoid serialization errors.
-- Add a small `FastAPI` inference scaffold that loads models from MLflow.
-
-Which task should I do next?
