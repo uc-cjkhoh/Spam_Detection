@@ -1,8 +1,5 @@
 # SMS Spam Detection Pipeline
 
-This repository implements an incremental SMS spam detection system using embeddings, vector storage, and online learning and trained in a teacher-student manner.
-# SMS Spam Detection Pipeline
-
 This repository implements an active-learning SMS spam detection pipeline built with embeddings, a vector store, and incremental training. It combines automated pseudo-labeling with human review and uses Prefect for orchestration and MLflow for experiment tracking.
 
 Goals
