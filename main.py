@@ -19,21 +19,25 @@ from src.utils.util import setup_core_components, save_evaluation
  
 @task(name='Setup environment', cache_policy=NO_CACHE) 
 def setup_environment(args):  
+    # setup required folders, files, and raw models
     config, database, embedding_model, vectorstore, teacher, student = setup_core_components(args)
     
-    # check initial data status
+    # get initial data from mysql
     initial_data = database.get_records(
         f'select {config.data.target_column}, {args.target_column} from sms_spam_cd.initial_data where day(datetime) != 22', 
         columns=[config.data.target_column, args.target_column]
     ).squeeze()
-      
+    
+    # terminate if the labels are not done yet
     if initial_data[args.target_column].isna().sum():  
         sys.exit(f"Please finish labelling the data in table `sms_spam_cd.initial_data`")
 
     # check if vectorstore created
     if len(os.listdir(vectorstore.directory)) > 0:
+        # retrieve embeddings from vectorstore
         vectorstore.load_index(folder_path=vectorstore.directory, index_name=vectorstore.filename)
     else:
+        # create new vectorstore and store initial data
         labels = initial_data.pop(args.target_column)
         features = get_normalized_messages(initial_data, config.data.target_column)
         payloads = features.pop(config.data.target_column)
@@ -41,11 +45,8 @@ def setup_environment(args):
         features.to_csv('./data/initial_data_features.csv', index=False)
         
         documents = [
-            Document(
-                page_content=payload,
-                metadata={'label': label}
-            )
-            for payload, label in zip(payloads, labels)
+            Document(page_content=payload, metadata={'label': label, "faiss_id": i})
+            for i, (payload, label) in enumerate(zip(payloads, labels))
         ] 
         vectorstore.write_index(documents)
         
@@ -53,11 +54,15 @@ def setup_environment(args):
 
 @task(name='Spam classification', cache_policy=NO_CACHE)
 def spam_classification(model, embeddings): 
+    """Return the classification result and confidence score of the model"""
     return model.predict(embeddings), model.predict_proba(embeddings)
 
 @task(name='Model training', cache_policy=NO_CACHE)
 def train_models(model, x, y):
+    """Train model with X-independent and Y-dependent"""
     model_instance = model.fit(x, y) 
+    
+    # save model to mlflow
     with mlflow.start_run(run_name='Build/Update Model'):
         mlflow.log_param('model_parameters', model_instance.get_params())
         mlflow.sklearn.log_model(
@@ -70,6 +75,7 @@ def train_models(model, x, y):
 
 @task(name='Model Evaluation', cache_policy=NO_CACHE)
 def evaluate_model(model, x, y_true):
+    """Evaluation the model performance with basic accuracy metrics"""
     y_pred = model.predict(x)
     confidence_score = model.predict_proba(x)
     
@@ -97,6 +103,7 @@ def stratified_sampling(config, db):
     
 @task(name='Insert/Update MySQL', cache_policy=NO_CACHE)
 def update_db(db, data): 
+    """Update result of the model classification to MySQL"""
     # reset last_batch column
     db.run_statement('UPDATE sms_spam_cd.metadata_result SET last_batch = False')
     
@@ -105,6 +112,7 @@ def update_db(db, data):
 
 @task(name="Normalize message", cache_policy=NO_CACHE)
 def normalize_message(data, target_column):
+    """Clean message based on different criterias"""
     return get_normalized_messages(data, target_column)
    
 @task(name="Sentence embeddings", cache_policy=NO_CACHE)
@@ -113,6 +121,7 @@ def sentence_embeddings(messages: list, embedding_model):
     
 @task(name="Dimension reduction", cache_policy=NO_CACHE)
 def dimension_reduction(embeddings: np.ndarray):
+    """Reduce embeddings' dimensions"""
     pca = PCA(n_components=384)
     scaled_embedding = pca.fit_transform(embeddings)
     return scaled_embedding
@@ -123,15 +132,23 @@ def preprocess_data(embedding_model, sms_message: pd.DataFrame, target_column: s
     
     messages = features.pop(target_column)
     embeddings = sentence_embeddings(messages.to_list(), embedding_model)             
-    scaled_embeddings = dimension_reduction(embeddings)
+    # scaled_embeddings = dimension_reduction(embeddings)
     
     scaler = RobustScaler()
-    features[['feature_emoji_count', 'feature_length', 'feature_newline_count']] = scaler.fit_transform(
-        features[['feature_emoji_count', 'feature_length', 'feature_newline_count']]
+    features[['feature_emoji_count', 'feature_length', 'feature_newline_count', 'feature_char_substitution_count', 
+              'feature_financial_keyword_count', 'feature_action_keyword_count', 'feature_urgency_keyword_count',
+              'feature_suspicious_keyword_count', 'feature_social_media_count', 'feature_excessive_newlines',
+              'feature_repeated_chars_count', 'feature_all_caps_words_count', 'feature_call_to_action_count',
+              'feature_excessive_punctuation', 'feature_consecutive_digits_count', 'feature_contact_method_diversity']] = scaler.fit_transform(
+        features[['feature_emoji_count', 'feature_length', 'feature_newline_count', 'feature_char_substitution_count', 
+              'feature_financial_keyword_count', 'feature_action_keyword_count', 'feature_urgency_keyword_count',
+              'feature_suspicious_keyword_count', 'feature_social_media_count', 'feature_excessive_newlines',
+              'feature_repeated_chars_count', 'feature_all_caps_words_count', 'feature_call_to_action_count',
+              'feature_excessive_punctuation', 'feature_consecutive_digits_count', 'feature_contact_method_diversity']]
     )
     
-    scaled_embeddings = np.hstack((features.to_numpy(), scaled_embeddings))
-    return scaled_embeddings 
+    embeddings = np.hstack((features.to_numpy(), embeddings))
+    return embeddings 
 
 @task(name='Oversampling', cache_policy=NO_CACHE)
 def oversampling(x, y):
@@ -144,26 +161,36 @@ def load_train_data(config, database, embedding_model, vectorstore):
     @task(name='Load initial data', cache_policy=NO_CACHE)
     def load_initial_data():
         initial_embeddings = vectorstore.faiss.index.reconstruct_n(0, -1)  
-        scaled_initial_embeddings = dimension_reduction(initial_embeddings)
+        # scaled_initial_embeddings = dimension_reduction(initial_embeddings)
         
         initial_features = pd.read_csv('./data/initial_data_features.csv')
         scaler = RobustScaler()
-        initial_features[['feature_emoji_count', 'feature_length', 'feature_newline_count']] = scaler.fit_transform(
-            initial_features[['feature_emoji_count', 'feature_length', 'feature_newline_count']]
+        initial_features[['feature_emoji_count', 'feature_length', 'feature_newline_count', 'feature_char_substitution_count', 
+              'feature_financial_keyword_count', 'feature_action_keyword_count', 'feature_urgency_keyword_count',
+              'feature_suspicious_keyword_count', 'feature_social_media_count', 'feature_excessive_newlines',
+              'feature_repeated_chars_count', 'feature_all_caps_words_count', 'feature_call_to_action_count',
+              'feature_excessive_punctuation', 'feature_consecutive_digits_count', 'feature_contact_method_diversity']] = scaler.fit_transform(
+            initial_features[['feature_emoji_count', 'feature_length', 'feature_newline_count', 'feature_char_substitution_count', 
+              'feature_financial_keyword_count', 'feature_action_keyword_count', 'feature_urgency_keyword_count',
+              'feature_suspicious_keyword_count', 'feature_social_media_count', 'feature_excessive_newlines',
+              'feature_repeated_chars_count', 'feature_all_caps_words_count', 'feature_call_to_action_count',
+              'feature_excessive_punctuation', 'feature_consecutive_digits_count', 'feature_contact_method_diversity']]
         )
         
-        scaled_embeddings = np.hstack((initial_features.to_numpy(), scaled_initial_embeddings))
+        scaled_embeddings = np.hstack((initial_features.to_numpy(), initial_embeddings))
 
-        docs = list(vectorstore.faiss.docstore._dict.values())    
-        initial_labels = [list(doc.metadata.values()) for doc in docs]
-        initial_labels = np.asarray(initial_labels).squeeze()
-   
-        return scaled_embeddings, initial_labels
+        n = vectorstore.faiss.index.ntotal
+        labels = np.empty(n, dtype=int)
+
+        for doc in vectorstore.faiss.docstore._dict.values():
+            labels[doc.metadata["faiss_id"]] = doc.metadata['label']
+ 
+        return scaled_embeddings, labels
    
     @task(name='Load MySQL data', cache_policy=NO_CACHE)
     def load_mysql_data():
         mysql_data = database.get_records(config.labeled_data, columns=[config.data.target_column, args.target_column]) 
-        if len(mysql_data) == 0:
+        if len(mysql_data) < 384:
             return np.array([]), np.array([])
             
         sql_labels = mysql_data.pop(args.target_column)
@@ -271,7 +298,7 @@ if __name__ == '__main__':
     p.add_argument('-c', '--target_column', type=str, default='spam_label', help='the column in database that indicate the type of sms (spam or ham)')
     p.add_argument('-s', '--skip_initialization', type=bool, default=True, help='whether to skip model initialization')
     p.add_argument('-x', '--skip_first_training', type=int, default=0, help='whether to skip the first training'),
-    p.add_argument('-n', '--number_of_uncertain', type=int, default=100, help='configure the number of uncertain message for human label')
+    p.add_argument('-n', '--number_of_uncertain', type=int, default=1000, help='configure the number of uncertain message for human label')
     p.add_argument('-t', '--threshold', type=float, default=0.975, help='configure the confidence score threshold')
     args = p.parse_args()
         

@@ -33,6 +33,31 @@ class SMSTextCleaner:
             (r'[𝑨-𝒁𝒂-𝒛]', self._normalize_italic),
             (r'[𝙰-𝚉𝚊-𝚣]', self._normalize_sans),
         ]
+        
+        # NEW: Spam keyword categories
+        self.financial_keywords = [
+            'loan', 'bank', 'interest', 'free', 'bonus', 'claim', 'voucher',
+            'win', 'prize', 'cash', 'money', 'credit', 'approved', 'guaranteed'
+        ]
+        
+        self.action_keywords = [
+            'reply', 'whatsapp', 'wassap', 'pm', 'contact', 'click', 'register',
+            'apply', 'join', 'call', 'sms', 'text', 'message'
+        ]
+        
+        self.urgency_keywords = [
+            'urgent', 'now', 'today', 'limited', 'hurry', 'fast', 'immediate',
+            'expire', 'deadline', 'last chance', 'act now'
+        ]
+        
+        self.suspicious_keywords = [
+            'akpk', 'blacklisted', 'ctos', 'ccris', 'commitment', 'reduce',
+            'consolidate', 'debt', 'refinance'
+        ]
+        
+        self.social_media_keywords = [
+            'whatsapp', 'wassap', 'telegram', 'wechat', 'line', 'viber'
+        ]
     
     def _normalize_bold(self, match):
         """Convert bold unicode to normal"""
@@ -174,10 +199,120 @@ class SMSTextCleaner:
     def convert_to_lowercase(self, text: str) -> str:
         """Convert text to lowercase"""
         return text.lower()
+     
+    def count_char_substitutions(self, text: str) -> int:
+        """
+        Count character substitutions commonly used in spam (0→O, 3→E, etc.)
+        Detects patterns like 'L0an', 'Fr3e', 'B0nus'
+        """
+        count = 0
+        # Look for digits in word contexts
+        for match in re.finditer(r'\b\w*\d+\w*\b', text):
+            word = match.group()
+            # Check if word has letters before/after digits (likely substitution)
+            if re.search(r'[a-zA-Z]\d', word) or re.search(r'\d[a-zA-Z]', word):
+                count += 1
+        return count
+    
+    def count_keyword_category(self, text: str, keywords: List[str]) -> int:
+        """Count occurrences of keywords from a category"""
+        text_lower = text.lower()
+        count = 0
+        for keyword in keywords:
+            count += len(re.findall(r'\b' + re.escape(keyword) + r'\b', text_lower))
+        return count
+    
+    def has_fragmented_phone(self, text: str) -> int:
+        """
+        Detect fragmented phone numbers like '0 1 1 6 0 5 0 8 4 0 3'
+        Returns 1 if found, 0 otherwise
+        """
+        # Pattern: single digit followed by space, repeated
+        pattern = r'\b\d\s+\d\s+\d\s+\d\s+\d\s+\d'
+        return 1 if re.search(pattern, text) else 0
+    
+    def count_social_media_mentions(self, text: str) -> int:
+        """Count social media platform mentions"""
+        return self.count_keyword_category(text, self.social_media_keywords)
+    
+    def count_excessive_newlines(self, text: str) -> int:
+        """Count sequences of multiple consecutive newlines"""
+        return len(re.findall(r'\n\n+', text))
+    
+    def count_repeated_chars(self, text: str) -> int:
+        """
+        Count sequences of repeated characters (3+ times)
+        e.g., '!!!', '***', '😭😭😭'
+        """
+        # Count repeated punctuation
+        punct_repeats = len(re.findall(r'([!?*=#])\1{2,}', text))
+        # Count repeated emojis (any char repeated 3+ times)
+        emoji_repeats = len(re.findall(r'(.)\1{2,}', text))
+        return punct_repeats + emoji_repeats
+    
+    def has_mixed_scripts(self, text: str) -> int:
+        """
+        Detect mixed language scripts (Latin + CJK characters)
+        Returns 1 if found, 0 otherwise
+        """
+        has_latin = bool(re.search(r'[a-zA-Z]', text))
+        has_cjk = bool(re.search(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]', text))
+        return 1 if (has_latin and has_cjk) else 0
+    
+    def count_all_caps_words(self, text: str) -> int:
+        """Count words that are ALL CAPS (2+ characters)"""
+        words = text.split()
+        return sum(1 for word in words if len(word) >= 2 and word.isupper())
+    
+    def has_call_to_action(self, text: str) -> int:
+        """
+        Detect call-to-action phrases
+        Returns count of CTA phrases found
+        """
+        cta_patterns = [
+            r'\breply\b', r'\bpm\b', r'\bcontact\b', r'\bclick\b',
+            r'\bregister\b', r'\bapply\b', r'\bjoin\b', r'\bcall\b',
+            r'\bwhatsapp\b', r'\bmessage\b', r'\bsms\b'
+        ]
+        text_lower = text.lower()
+        count = 0
+        for pattern in cta_patterns:
+            if re.search(pattern, text_lower):
+                count += 1
+        return count
+    
+    def count_exclamation_question(self, text: str) -> int:
+        """Count excessive punctuation (multiple ! or ?)"""
+        return len(re.findall(r'[!?]{2,}', text))
+    
+    def has_unicode_special_chars(self, text: str) -> int:
+        """
+        Detect special Unicode characters (bold, italic, fancy fonts)
+        Returns 1 if found, 0 otherwise
+        """
+        # Check for mathematical alphanumeric symbols
+        pattern = r'[\U0001D400-\U0001D7FF]'
+        return 1 if re.search(pattern, text) else 0
+    
+    def count_consecutive_digits(self, text: str) -> int:
+        """Count sequences of 4+ consecutive digits"""
+        return len(re.findall(r'\d{4,}', text))
+    
+    def calculate_contact_diversity(self, text: str) -> int:
+        """
+        Count number of different contact methods mentioned
+        (phone, whatsapp, telegram, etc.)
+        """
+        text_lower = text.lower()
+        contact_methods = ['phone', 'whatsapp', 'wassap', 'telegram', 'wechat', 
+                          'viber', 'line', 'pm', 'sms', 'call']
+        count = sum(1 for method in contact_methods if method in text_lower)
+        return count
     
     def extract_features(self, text: str) -> Dict:
-        """Extract useful features before cleaning"""
+        """Extract all features before cleaning (existing + new)"""
         features = {
+            # EXISTING FEATURES
             'emoji_count': self.keep_emojis_count(text),
             'has_phone': np.where(bool(re.search(r'0\d{9,10}|6\s*0\s*1', text)), 1, 0),
             'has_currency': np.where(bool(re.search(r'rm\s*\d+', text, re.IGNORECASE)), 1, 0),
@@ -187,6 +322,24 @@ class SMSTextCleaner:
             'special_char_ratio': sum(1 for c in text if not c.isalnum() and not c.isspace()) / max(len(text), 1),
             'length': len(text),
             'newline_count': text.count('\n'),
+            
+            # NEW FEATURES
+            'char_substitution_count': self.count_char_substitutions(text),
+            'financial_keyword_count': self.count_keyword_category(text, self.financial_keywords),
+            'action_keyword_count': self.count_keyword_category(text, self.action_keywords),
+            'urgency_keyword_count': self.count_keyword_category(text, self.urgency_keywords),
+            'suspicious_keyword_count': self.count_keyword_category(text, self.suspicious_keywords),
+            'has_fragmented_phone': self.has_fragmented_phone(text),
+            'social_media_count': self.count_social_media_mentions(text),
+            'excessive_newlines': self.count_excessive_newlines(text),
+            'repeated_chars_count': self.count_repeated_chars(text),
+            'has_mixed_scripts': self.has_mixed_scripts(text),
+            'all_caps_words_count': self.count_all_caps_words(text),
+            'call_to_action_count': self.has_call_to_action(text),
+            'excessive_punctuation': self.count_exclamation_question(text),
+            'has_unicode_special': self.has_unicode_special_chars(text),
+            'consecutive_digits_count': self.count_consecutive_digits(text),
+            'contact_method_diversity': self.calculate_contact_diversity(text),
         }
         return features
     
@@ -269,5 +422,3 @@ def get_normalized_messages(df, target_column, extract_features: bool = True):
     ) 
     
     return df
-
- 

@@ -23,7 +23,7 @@ data:
     FROM
       StratifiedData
     WHERE
-      rn <= 1000'
+      rn <= 500'
   column_name: ['id', 'datetime', 'payload']
   target_column: 'payload'
 

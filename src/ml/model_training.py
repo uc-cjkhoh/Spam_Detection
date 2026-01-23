@@ -1,4 +1,5 @@
 import mlflow
+import numpy as np
 
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import train_test_split
@@ -46,13 +47,11 @@ class SGD(ModelBoneStructure):
         )
      
     def fit(self, x, y):
-        # hdb = HDBSCAN(min_cluster_size=3)
-        # cluster_id = hdb.fit_predict(x)
-        
-        # counts = Counter(cluster_id)
-        # counts.pop(-1, None)
-          
-        self.model.fit(x, y)
+        hdb = HDBSCAN(min_cluster_size=5)
+        cluster_id = hdb.fit_predict(x)
+        counts = np.unique(cluster_id, return_counts=True)
+        weights = np.asarray([((len(x)) / (len(counts[0]) * counts[1][id])) for id in cluster_id])
+        self.model.fit(x, y, sample_weight=weights)
         return self.model
     
 class XGBoost(ModelBoneStructure):
@@ -76,3 +75,5 @@ class XGBoost(ModelBoneStructure):
             self.model.fit(x_train, y_train, eval_set=[(x_test, y_test)]) 
             
         return self.model
+    
+    

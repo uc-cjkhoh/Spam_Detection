@@ -24,6 +24,7 @@ def setup_core_components(args):
         model_name="jinaai/jina-embeddings-v3",
         model_kwargs={'trust_remote_code': True},
         encode_kwargs={
+            'batch_size': 8,
             'normalize_embeddings': True
         },
         show_progress=True
