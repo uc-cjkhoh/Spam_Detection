@@ -72,33 +72,6 @@ print(list_artifacts_recursive(client, run_id))  # typically contains 'model'
 model = mlflow.sklearn.load_model(f"runs:/{run_id}/model")
 ```
 
-Why accuracy may be unstable
-
-- Transformers fit per-call: Ensure PCA/Scaler are fitted once on training data and reused for inference to avoid data leakage.
-- Label handling: Keep labels as a 1-D integer array (`y = np.asarray(y).ravel().astype(int)`).
-- SMOTE misuse: Apply SMOTE after splitting on the full training set (not per mini-batch).
-- Probability handling: For binary, use `predict_proba(X)[:, 1]` for positive-class confidence.
-- Model calibration: `SGDClassifier` may need `CalibratedClassifierCV` for reliable probabilities.
-
-Best practices and production recommendations
-
-- Separate responsibilities:
-  - Real-time inference: a small FastAPI service that loads the MLflow model and returns predictions.
-  - Offline / training: Prefect flows run training, evaluation and MLflow logging.
-  - Artifacts and registry: MLflow Tracking Server + artifact store (S3 or local `mlartifacts/`).
-
-- Use a reproducible preprocessing pipeline (sklearn `Pipeline`) that chains scaler → PCA → classifier and serialize it with MLflow or `joblib`.
-
-- Avoid nested `@flow` decorators in Prefect. Use `@task` for steps that run inside the same flow run; nested flows cause Prefect to serialize parameters which may fail on non-serializable objects.
-
-- Persist transformers and use stratified splits with fixed random_state for reproducible metrics.
-
-Troubleshooting common issues
-
-- `RecursionError` during flow run: caused by Prefect serializing non-serializable objects (DB/clients, models). Return only serializable values from flows or instantiate heavy clients inside tasks.
-- `jsonable_encoder` errors: avoid returning complex objects from flows; pass simple config or artifact URIs.
-- Model logging errors: log the raw sklearn estimator (not wrapper/task objects) to MLflow: `mlflow.sklearn.log_model(sk_model=sk_model, ...)`.
-
 Development and testing
 
 - Run unit tests:
