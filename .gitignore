@@ -2,7 +2,7 @@ logs/
 data/
 mlruns/
 prefect/
-evaluation/
+evaluation/mlruns/
 deployment/
 __pycache__/
 mlartifacts/
