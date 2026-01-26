@@ -110,7 +110,7 @@ def preprocess_data(embedding_model, sms_message: pd.DataFrame, target_column: s
     scaler = RobustScaler()
     features = scaler.fit_transform(features)
     
-    embeddings = np.hstack((features.to_numpy(), embeddings))
+    embeddings = np.hstack((features, embeddings))
     return embeddings 
 
 
@@ -131,7 +131,7 @@ def load_train_data(args, config, database, embedding_model, vectorstore):
         initial_features = pd.read_csv('./data/initial_data_features.csv')
         initial_features = scaler.fit_transform(initial_features)
         
-        scaled_embeddings = np.hstack((initial_features.to_numpy(), initial_embeddings))
+        scaled_embeddings = np.hstack((initial_features, initial_embeddings))
 
         n = vectorstore.faiss.index.ntotal
         labels = np.empty(n, dtype=int)

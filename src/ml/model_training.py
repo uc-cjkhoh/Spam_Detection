@@ -1,10 +1,10 @@
+import os
 import mlflow
 import numpy as np
 import pandas as pd
-
-from datetime import datetime
+ 
 from sklearn.linear_model import SGDClassifier
-from sklearn.metrics import classification_report 
+from sklearn.metrics import precision_recall_fscore_support
 from sklearn.cluster import HDBSCAN 
 
 from prefect import task
@@ -50,11 +50,34 @@ class ModelBoneStructure():
     def evaluate(self, x_test, y_test):
         """Evaluation the model performance with basic accuracy metrics"""
         y_pred = self.model.predict(x_test)
-        report = classification_report(y_test, y_pred, output_dict=True)
-
-        report_df = pd.DataFrame(report).transpose()
-        report_df.to_csv(f'./evaluation/{self.model_name}_{datetime.now().strftime("%y/%m/%d_%H%M%S")}')
         
+        labels = np.unique(y_test)
+        
+        precision, recall, f1, support = precision_recall_fscore_support(
+            y_test,
+            y_pred,
+            labels=labels,
+            average=None
+        ) 
+        
+        df = pd.DataFrame({
+            "model": self.model.model_name,
+            "class": labels,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+            "support": support
+        })
+       
+        output_path = "./logs/evaluation/model_metrics.csv"
+
+        df.to_csv(
+            output_path,
+            mode="a",
+            header=not os.path.exists(output_path),
+            index=False
+        )
+                
       
 class SGD(ModelBoneStructure):
     def __init__(self, experiment_name, model_name):

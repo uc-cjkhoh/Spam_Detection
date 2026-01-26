@@ -1,0 +1,24 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch==2.9.1+cpu
+mysql-connector-python
+numpy
+pandas
+pyyaml
+einops
+tqdm
+joblib
+addict
+prefect
+sentence-transformers
+langchain-community
+langchain-huggingface
+emoji
+openpyxl
+faiss-cpu
+pytest
+mlflow
+SQLAlchemy
+xgboost
+pymysql
+imbalanced-learn
