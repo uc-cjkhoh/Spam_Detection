@@ -87,11 +87,8 @@ def setup_core_components(args):
             for i, (payload, label) in enumerate(zip(payloads, labels))
         ] 
         vectorstore.write_index(documents)
-      
-    x_train, y_train = load_train_data(args, config, database, embedding_model, vectorstore)
-    x_test, y_test = load_test_data(args, config, database, embedding_model)
-      
-    return config, database, embedding_model, vectorstore, teacher, student, (x_train, y_train, x_test, y_test)
+       
+    return config, database, embedding_model, vectorstore, teacher, student
  
  
 @task(name='Stratified Sampling', cache_policy=NO_CACHE)

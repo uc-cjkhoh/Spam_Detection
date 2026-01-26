@@ -5,21 +5,21 @@ import pandas as pd
 
 from prefect import flow 
  
-from src.utils.util import setup_core_components, update_db, preprocess_data, stratified_sampling, oversampling
+from src.utils.util import setup_core_components, update_db, preprocess_data, stratified_sampling, oversampling, load_train_data, load_test_data
   
 
 @flow(name='Active Learning Pipeline')
 def main(args):   
     try:
         # setup environment
-        config, database, embedding_model, vectorstore, teacher, student, train_test_dataset = setup_core_components(args)   
-        
-        # load train data
-        x_train, y_train, x_test, y_test = train_test_dataset
+        config, database, embedding_model, vectorstore, teacher, student = setup_core_components(args)   
          
-        # initial teacher model if not skip
-        if not args.skip_first_training:
-            teacher.fit(x_train, y_train) 
+        # load train data
+        x_train, y_train = load_train_data(args, config, database, embedding_model, vectorstore)
+        x_test, y_test = load_test_data(args, config, database, embedding_model)
+    
+        # initial teacher model if not skip 
+        teacher.fit(x_train, y_train) 
         
         # evaluate teacher model
         teacher.evaluate(x_test, y_test)
@@ -49,7 +49,7 @@ def main(args):
     
         # evaluate student model
         student.evaluate(x_test, y_test)
-         
+        
         # save uncertainty from teacher model
         data_to_sql = pd.DataFrame({
             'id': data_id,
@@ -76,7 +76,6 @@ if __name__ == '__main__':
     p.add_argument('-e', '--experiment', type=str, default='SMS_SPAM_DETECTION_V3', help='name of the experiment in mlflow')
     p.add_argument('-c', '--target_column', type=str, default='spam_label', help='the column in database that indicate the type of sms (spam or ham)')
     p.add_argument('-s', '--skip_initialization', type=bool, default=True, help='whether to skip model initialization')
-    p.add_argument('-x', '--skip_first_training', type=int, default=0, help='whether to skip the first training'),
     p.add_argument('-n', '--number_of_uncertain', type=int, default=1000, help='configure the number of uncertain message for human label')
     p.add_argument('-t', '--threshold', type=float, default=0.975, help='configure the confidence score threshold')
     args = p.parse_args()

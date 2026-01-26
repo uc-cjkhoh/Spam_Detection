@@ -61,7 +61,7 @@ class ModelBoneStructure():
         ) 
         
         df = pd.DataFrame({
-            "model": self.model.model_name,
+            "model": self.model_name,
             "class": labels,
             "precision": precision,
             "recall": recall,
