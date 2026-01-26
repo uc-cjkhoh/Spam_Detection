@@ -1,13 +1,14 @@
 import mlflow
 import numpy as np
+import pandas as pd
 
+from datetime import datetime
 from sklearn.linear_model import SGDClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.utils.validation import check_is_fitted
-from sklearn.exceptions import NotFittedError 
-from xgboost import XGBClassifier 
-from sklearn.cluster import HDBSCAN
-from collections import Counter
+from sklearn.metrics import classification_report 
+from sklearn.cluster import HDBSCAN 
+
+from prefect import task
+from prefect.cache_policies import NO_CACHE
 
 
 class ModelBoneStructure():
@@ -25,16 +26,36 @@ class ModelBoneStructure():
         )
         
         self.model = model if len(self.model_list) == 0 else mlflow.sklearn.load_model(self.model_list.iloc[0].artifact_location)
-        
+    
+    @task(name='Perform Classification', cache_policy=NO_CACHE)
     def predict(self, x):
         return self.model.predict(x)
     
+    @task(name='Get Confidence Score', cache_policy=NO_CACHE)
     def predict_proba(self, x):
         return self.model.predict_proba(x).max(axis=1)
+
+    @task(name='Save Model', cache_policy=NO_CACHE)
+    def save(self, input_sample):
+        with mlflow.start_run(run_name='Build/Update Model'):
+            mlflow.log_param('model_parameters', self.model.get_params())
+            mlflow.sklearn.log_model(
+                sk_model=self.model,
+                name=self.model.model_name,
+                registered_model_name=f'{self.model.model_name}',
+                input_example=input_sample
+            )   
     
-    def get_existing_models(self):
-        return self.model_list
-  
+    @task(name='Evaluate Model', cache_policy=NO_CACHE)
+    def evaluate(self, x_test, y_test):
+        """Evaluation the model performance with basic accuracy metrics"""
+        y_pred = self.model.predict(x_test)
+        report = classification_report(y_test, y_pred, output_dict=True)
+
+        report_df = pd.DataFrame(report).transpose()
+        report_df.to_csv(f'./evaluation/{self.model_name}_{datetime.now().strftime("%y/%m/%d_%H%M%S")}')
+        
+      
 class SGD(ModelBoneStructure):
     def __init__(self, experiment_name, model_name):
         super().__init__(
@@ -46,6 +67,7 @@ class SGD(ModelBoneStructure):
             )
         )
      
+    @task(name='Train Model', cache_policy=NO_CACHE)
     def fit(self, x, y):
         hdb = HDBSCAN(min_cluster_size=5)
         cluster_id = hdb.fit_predict(x)
@@ -53,27 +75,4 @@ class SGD(ModelBoneStructure):
         weights = np.asarray([((len(x)) / (len(counts[0]) * counts[1][id])) for id in cluster_id])
         self.model.fit(x, y, sample_weight=weights)
         return self.model
-    
-class XGBoost(ModelBoneStructure):
-    def __init__(self, experiment_name, model_name):
-        super().__init__(
-            experiment_name=experiment_name, 
-            model_name=model_name,
-            model=XGBClassifier(
-                n_estimators=500,
-                base_score=0.5
-            )
-        )
-         
-    def fit(self, x, y):
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, shuffle=True)
-        
-        try:
-            check_is_fitted(self.model)
-            self.model.fit(x_train, y_train, eval_set=[(x_test, y_test)], xgb_model=self.model.get_booster()) 
-        except NotFittedError as e: 
-            self.model.fit(x_train, y_train, eval_set=[(x_test, y_test)]) 
-            
-        return self.model
-    
     
