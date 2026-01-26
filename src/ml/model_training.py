@@ -41,8 +41,8 @@ class ModelBoneStructure():
             mlflow.log_param('model_parameters', self.model.get_params())
             mlflow.sklearn.log_model(
                 sk_model=self.model,
-                name=self.model.model_name,
-                registered_model_name=f'{self.model.model_name}',
+                name=self.model_name,
+                registered_model_name=f'{self.model_name}',
                 input_example=input_sample
             )   
     

@@ -24,6 +24,9 @@ def main(args):
         # evaluate teacher model
         teacher.evaluate(x_test, y_test)
         
+        # save teacher model
+        teacher.save(input_sample=x_train[:1])
+         
         # stratified sampling
         data_id, data_dt, data_msg = stratified_sampling(config, database)
 
@@ -50,6 +53,9 @@ def main(args):
         # evaluate student model
         student.evaluate(x_test, y_test)
         
+        # save student model
+        student.save(input_sample=pseud_x[:1])
+    
         # save uncertainty from teacher model
         data_to_sql = pd.DataFrame({
             'id': data_id,
