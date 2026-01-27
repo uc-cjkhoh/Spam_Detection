@@ -24,12 +24,7 @@ def setup_core_components(args):
     
     os.makedirs('./data/vector', exist_ok=True)
     os.makedirs('./logs/evaluation', exist_ok=True)
-     
-    if not os.path.isfile('logs/evaluation/evaluation.xlsx'):
-        pd.DataFrame(columns=['Model', 'Accuracy', 'Precision', 'Recall', 'F1', 'Loss']).to_excel(
-            'logs/evaluation/evaluation.xlsx', index=False
-        ) 
-    
+      
     # 1. setup connection to mysql
     database = Database(
         host="10.168.51.196",
@@ -52,7 +47,7 @@ def setup_core_components(args):
     # 3. setup vectorstore
     vectorstore = VectorStore(
         directory='./data/vector', 
-        filename='sms_embeddings',
+        filename=f'sms_embeddings_{args.experiment}',
         embedding=embedding_model
     )
     
@@ -60,11 +55,8 @@ def setup_core_components(args):
     teacher = SGD(experiment_name=args.experiment, model_name='Teacher') 
     student = SGD(experiment_name=args.experiment, model_name='Student')
        
-    # 5. build faiss index if not exists
-    initial_data = database.get_records(
-        f'select {config.data.target_column}, {args.target_column} from sms_spam_cd.initial_data where day(datetime) != 22', 
-        columns=[config.data.target_column, args.target_column]
-    ).squeeze()
+    # 5. get initial data
+    initial_data = database.get_records(config.initial_data)
     
     # terminate if the labels are not done yet
     if initial_data[args.target_column].isna().sum():  
@@ -80,7 +72,7 @@ def setup_core_components(args):
         features = get_normalized_messages(initial_data, config.data.target_column)
         payloads = features.pop(config.data.target_column)
         
-        features.to_csv('./data/initial_data_features.csv', index=False)
+        features.to_csv(f'./data/initial_data_features_{args.experiment}.csv', index=False)
         
         documents = [
             Document(page_content=payload, metadata={'label': label, "faiss_id": i})
@@ -125,7 +117,7 @@ def load_train_data(args, config, database, embedding_model, vectorstore):
         scaler = RobustScaler()
         
         initial_embeddings = vectorstore.faiss.index.reconstruct_n(0, -1)  
-        initial_features = pd.read_csv('./data/initial_data_features.csv')
+        initial_features = pd.read_csv(f'./data/initial_data_features_{args.experiment}.csv')
         initial_features = scaler.fit_transform(initial_features)
         
         scaled_embeddings = np.hstack((initial_features, initial_embeddings))
@@ -166,10 +158,7 @@ def load_train_data(args, config, database, embedding_model, vectorstore):
 
 @task(name='Load test data', cache_policy=NO_CACHE)
 def load_test_data(args, config, database, embedding_model):
-    test_data = database.get_records(
-        f'select {config.data.target_column}, {args.target_column} from sms_spam_cd.initial_data where day(datetime) = 22', 
-        columns=[config.data.target_column, args.target_column]
-    ).squeeze()
+    test_data = database.get_records(config.test_data) 
     
     if test_data.shape[0] > 0:
         y_test = test_data.pop(args.target_column).to_numpy().squeeze() 

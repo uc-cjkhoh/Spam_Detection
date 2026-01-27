@@ -1,45 +1,38 @@
-import pandas as pd
-import mysql.connector 
+import pandas as pd 
 
-from sqlalchemy import create_engine, MetaData, Table, Column, BigInteger, DateTime, SmallInteger, Boolean, Double, String
+from sqlalchemy import create_engine, text, MetaData, Table, Column, BigInteger, DateTime, SmallInteger, Boolean, Double, String
 from sqlalchemy.dialects.mysql import insert
 
 from prefect import task
 from prefect.cache_policies import NO_CACHE 
-  
+
+
 class Database:
     def __init__(self, host, port, user, password):
         self.host = host
         self.port = port
         self.user = user
         self.password = password
-        self.connector = self.initialize_db_connection()
-        self.cur = self.connector.cursor()
- 
- 
-    def initialize_db_connection(self):
-        try:     
-            return mysql.connector.connect(
-                host = self.host,
-                port = self.port,
-                user = self.user,
-                password = self.password
-            )
-        except Exception as e:
-            raise Exception(e)
-        
-        
+        self.engine = create_engine("mysql+pymysql://unified:unified@10.168.51.196:3306/sms_spam_cd")
+  
+  
+    @task(name="Run SQL Statement")
     def run_statement(self, statement: str):
-        self.cur.execute(statement)
-        self.connector.commit()
+        with self.engine.begin() as conn:
+            conn.execute(text(statement))
       
-      
-    def get_records(self, query, columns: list) -> pd.DataFrame:
-        self.cur.execute(query)
-        data = pd.DataFrame(self.cur.fetchall(), columns=columns)
-        return data
     
-     
+    @task(name="Retrieve Records From MySQL", cache_policy=NO_CACHE)  
+    def get_records(self, query, columns: list) -> pd.DataFrame:
+        with self.engine.connect() as conn:
+            result = conn.execute(text(query))
+            rows = result.fetchall()
+            columns = result.keys()
+            
+        return pd.DataFrame(rows, columns=columns)
+    
+    
+    @task(name="Save to MySQL", cache_policy=NO_CACHE)
     def save_to_mysql(self, data: dict):
         engine = create_engine(f'mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/sms_spam_cd')
         metadata = MetaData()
@@ -76,13 +69,7 @@ class Database:
         engine.dispose() 
     
     
-    @task(name='Insert/Update MySQL', cache_policy=NO_CACHE)
-    def update_db(self, data): 
-        """Update result of the model classification to MySQL""" 
-        self.run_statement('UPDATE sms_spam_cd.metadata_result SET last_batch = False')
-        self.save_to_mysql(data) 
-    
-    
+    @task(name="Disconnect MySQL", cache_policy=NO_CACHE)
     def close_connection(self):
         try:
             if self.cur:

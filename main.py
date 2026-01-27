@@ -3,8 +3,7 @@ import argparse
 import numpy as np
 import pandas as pd 
 
-from prefect import flow 
- 
+from prefect import flow  
 from src.utils.util import setup_core_components, preprocess_data, stratified_sampling, oversampling, load_train_data, load_test_data
   
 
@@ -36,25 +35,28 @@ def main(args):
         # classification
         result, confidence_score = teacher.predict(scaled_embeddings), teacher.predict_proba(scaled_embeddings)
         
-        # prepare data to be store in mysql
+        # get high confidence and uncertain data indexes
         high_conf_ids = np.where(confidence_score >= args.threshold)[0]
         uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), args.number_of_uncertain)[:args.number_of_uncertain]
+        
+        # configure label status (-1 = need human to label)
         label_status = np.zeros(confidence_score.shape)
         label_status[high_conf_ids] = 1
-        label_status[uncertain_ids] = -1 
+        label_status[uncertain_ids] = -1
         
+        # create new training data (initial data + high confidence data)
         high_conf_embeddings, high_conf_labels = scaled_embeddings[high_conf_ids], result[high_conf_ids].squeeze()
-        pseud_x, pseud_y = np.vstack((x_train, high_conf_embeddings)), np.hstack((y_train, high_conf_labels))
-        pseud_x, pseud_y = oversampling(pseud_x, pseud_y)
+        new_train_x, new_train_y = np.vstack((x_train, high_conf_embeddings)), np.hstack((y_train, high_conf_labels))
+        new_train_x, new_train_y = oversampling(new_train_x, new_train_y)
         
-        # train student model 
-        student.fit(pseud_x, pseud_y.reshape(-1, 1))
+        # train student model
+        student.fit(new_train_x, new_train_y.reshape(-1, 1))
     
         # evaluate student model
         student.evaluate(x_test, y_test)
         
         # save student model
-        student.save(input_sample=pseud_x[:1])
+        student.save(input_sample=new_train_x[:1])
     
         # save uncertainty from teacher model
         data_to_sql = pd.DataFrame({
@@ -67,22 +69,26 @@ def main(args):
             'last_batch': [1] * len(data_id)
         }).to_dict(orient='records')
         
-        # update mysql
-        database.update_db(data_to_sql)
+        # update last_batch column
+        database.run_statement('update sms_spam_cd.metadata_result set last_batch = 0')
+        
+        # save result to mysql
+        database.save_to_mysql(data_to_sql)
          
     except Exception as e:
         raise Exception(e)
     finally:
+        # disconnect mysql
         database.close_connection() 
 
 
 if __name__ == '__main__': 
     p = argparse.ArgumentParser(description='SMS Spam Detection')
     p.add_argument('-u', '--mlflow_uri', type=str, default='http://10.168.49.12:5000', help='override mlflow tracking uri, else uses ./mlruns')
-    p.add_argument('-e', '--experiment', type=str, default='SMS_SPAM_DETECTION_V3', help='name of the experiment in mlflow')
+    p.add_argument('-e', '--experiment', type=str, default='TRAIN_ON_ONE_DAY', help='name of the experiment in mlflow')
     p.add_argument('-c', '--target_column', type=str, default='spam_label', help='the column in database that indicate the type of sms (spam or ham)')
     p.add_argument('-s', '--skip_initialization', type=bool, default=True, help='whether to skip model initialization')
-    p.add_argument('-n', '--number_of_uncertain', type=int, default=1000, help='configure the number of uncertain message for human label')
+    p.add_argument('-n', '--number_of_uncertain', type=int, default=500, help='configure the number of uncertain message for human label')
     p.add_argument('-t', '--threshold', type=float, default=0.975, help='configure the confidence score threshold')
     args = p.parse_args()
     

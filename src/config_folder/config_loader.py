@@ -3,6 +3,8 @@ import yaml
 import errno
  
 from addict import Dict
+from prefect import task
+from prefect.cache_policies import NO_CACHE
 
 
 class ConfigLoader:  
@@ -15,7 +17,8 @@ class ConfigLoader:
             except FileNotFoundError as e:
                 raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), _config_path)
     
-     
+
+@task(name="Load YAML Configuration", cache_policy=NO_CACHE)     
 def get_config():
     """
     Load config.yaml document

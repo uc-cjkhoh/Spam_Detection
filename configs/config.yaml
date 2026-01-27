@@ -1,4 +1,26 @@
-# quert to select subdata
+# initial data
+initial_data: 
+  'select 
+    payload,
+    spam_label
+  from 
+    sms_spam_cd.initial_data 
+  where 
+    day(datetime) != 22
+  '
+
+# test data
+test_data:
+  'select 
+    payload,
+    spam_label
+  from 
+    sms_spam_cd.initial_data 
+  where 
+    day(datetime) = 22
+  '
+
+# stratified sampling
 data: 
   query: 
     'WITH StratifiedData AS (
@@ -27,18 +49,7 @@ data:
   column_name: ['id', 'datetime', 'payload']
   target_column: 'payload'
 
-# define population data's metadata
-metadata:
-  query:
-    'SELECT DISTINCT
-      YEAR(current_datetime), 
-      MONTH(current_datetime), 
-      DAY(current_datetime), 
-      HOUR(current_datetime)
-    FROM 
-      sms_spam_cd.data_tdr_spam_filter'
-  column_name: ['year', 'month', 'day', 'hour'] 
-  
+# get human labeled data in mysql
 labeled_data: 
   "select 
     data.payload,

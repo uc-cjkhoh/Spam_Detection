@@ -80,6 +80,7 @@ class ModelBoneStructure():
                 
       
 class SGD(ModelBoneStructure):
+    @task(name="Create New SGDClassifier Object", cache_policy=NO_CACHE)
     def __init__(self, experiment_name, model_name):
         super().__init__(
             experiment_name=experiment_name,

@@ -1,18 +1,14 @@
 import re
 import pandas as pd
 import numpy as np
+
 from typing import List, Dict
-import unicodedata
+from prefect import task
+from prefect.cache_policies import NO_CACHE
 
 
 class SMSTextCleaner:
-    """
-    Comprehensive text cleaner for SMS spam detection
-    Handles special characters, unicode variations, obfuscation patterns, and emojis
-    """
-    
-    def __init__(self):
-        # Common spam obfuscation patterns
+    def __init__(self): 
         self.char_replacements = {
             '0': 'o',
             '1': 'i',
@@ -395,23 +391,19 @@ class SMSTextCleaner:
         return text
 
 
-# Example usage
+@task(name="Normalize Sentence", cache_policy=NO_CACHE)
 def get_normalized_messages(df, target_column, extract_features: bool = True): 
     df[target_column] = df[target_column].fillna('')
-    
-    # Initialize cleaner
+     
     cleaner = SMSTextCleaner()
-    
-    # Extract features before cleaning (if requested)
+     
     if extract_features: 
         feature_dicts = df[target_column].apply(cleaner.extract_features)
         feature_df = pd.DataFrame(feature_dicts.tolist())
-        
-        # Add features to dataframe
+         
         for col in feature_df.columns:
             df[f'feature_{col}'] = feature_df[col]
-    
-    # Clean text 
+     
     df[target_column] = df[target_column].apply(
         lambda x: cleaner.clean(
             x, 
