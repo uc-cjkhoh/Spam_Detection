@@ -27,10 +27,10 @@ def main(args):
         teacher.save(input_sample=x_train[:1])
          
         # stratified sampling
-        data_id, data_dt, data_msg = stratified_sampling(config, database)
+        new_batch_data_id, new_batch_data_dt, new_batch_data_msg = stratified_sampling(config, database)
 
         # preprocess data
-        scaled_embeddings = preprocess_data(embedding_model, data_msg, target_column=config.data.target_column)
+        scaled_embeddings = preprocess_data(embedding_model, new_batch_data_msg, target_column=config.data.target_column)
         
         # classification
         result, confidence_score = teacher.predict(scaled_embeddings), teacher.predict_proba(scaled_embeddings)
@@ -57,23 +57,22 @@ def main(args):
         
         # save student model
         student.save(input_sample=new_train_x[:1])
-    
-        # save uncertainty from teacher model
-        data_to_sql = pd.DataFrame({
-            'id': data_id,
-            'datetime': data_dt,
-            'spam_label': result,
-            'confidence_score': confidence_score,
-            'label_status': label_status,
-            'model': type(teacher).__name__,
-            'last_batch': [1] * len(data_id)
-        }).to_dict(orient='records')
-        
+     
         # update last_batch column
         database.run_statement('update sms_spam_cd.metadata_result set last_batch = 0')
         
         # save result to mysql
-        database.save_to_mysql(data_to_sql)
+        database.save_to_mysql(
+            pd.DataFrame({
+                'id': new_batch_data_id,
+                'datetime': new_batch_data_dt,
+                'spam_label': result,
+                'confidence_score': confidence_score,
+                'label_status': label_status,
+                'model': type(teacher).__name__,
+                'last_batch': [1] * len(new_batch_data_id)
+            }).to_dict(orient='records')
+        )
          
     except Exception as e:
         raise Exception(e)

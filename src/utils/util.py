@@ -105,6 +105,7 @@ def stratified_sampling(config, db) -> tuple[pd.Series, pd.Series, pd.DataFrame]
     Returns:
         tuple[pd.Series, pd.Series, pd.DataFrame]: id, datetime, payload from MySQL 
     """
+    
     data = db.get_records(config.data.query)
     return data['id'], data['current_datetime'], data[['payload']]
  
@@ -121,6 +122,7 @@ def preprocess_data(embedding_model: HuggingFaceEmbeddings, sms_message: pd.Data
     Returns:
         np.ndarray: embeddings
     """
+    
     features = get_normalized_messages(sms_message, target_column=target_column) 
     
     messages = features.pop(target_column)
@@ -144,6 +146,7 @@ def oversampling(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     Returns:
         tuple[np.ndarray, np.ndarray]: oversampled x and y
     """
+    
     smote = SMOTE(random_state=42)
     resampled_x, resampled_y = smote.fit_resample(x, y)    
     return resampled_x, resampled_y
@@ -173,6 +176,7 @@ def load_train_data(args: argparse.Namespace, config: dict, database: Database,
             np.ndarray: robust-scaled embeddings
             np.ndarray: corresponding labels
         """
+        
         scaler = RobustScaler()
         
         initial_embeddings = vectorstore.faiss.index.reconstruct_n(0, -1)  
@@ -196,6 +200,7 @@ def load_train_data(args: argparse.Namespace, config: dict, database: Database,
             np.ndarray: robust-scaled embeddings
             np.ndarray: corresponding labels
         """ 
+        
         mysql_data = database.get_records(config.labeled_data)
         mysql_data_labels = mysql_data.pop(args.target_column)
         mysql_data_embeddings = preprocess_data(
@@ -236,6 +241,7 @@ def load_test_data(args: argparse.Namespace, config: dict, database: Database, e
     Returns:
         tuple[np.ndarray, np.ndarray]: testing embeddings and labels 
     """
+    
     test_data = database.get_records(config.test_data) 
     
     if test_data.shape[0] > 0:

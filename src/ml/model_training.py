@@ -37,6 +37,7 @@ class ModelBoneStructure():
         
         self.model = model if len(self.model_list) == 0 else mlflow.sklearn.load_model(self.model_list.iloc[0].artifact_location)
     
+    
     @task(name='Perform Classification', cache_policy=NO_CACHE)
     def predict(self, x: np.ndarray) -> np.ndarray:
         """Perform prediction / classification
@@ -50,6 +51,7 @@ class ModelBoneStructure():
         
         return self.model.predict(x)
     
+    
     @task(name='Get Confidence Score', cache_policy=NO_CACHE)
     def predict_proba(self, x: np.ndarray) -> np.ndarray:
         """Retrieve prediction or classification probability
@@ -62,6 +64,7 @@ class ModelBoneStructure():
         """
         
         return self.model.predict_proba(x).max(axis=1)
+
 
     @task(name='Save Model', cache_policy=NO_CACHE)
     def save(self, input_sample: np.ndarray):
@@ -79,6 +82,7 @@ class ModelBoneStructure():
                 registered_model_name=f'{self.model_name}',
                 input_example=input_sample
             )   
+    
     
     @task(name='Evaluate Model', cache_policy=NO_CACHE)
     def evaluate(self, x_test: np.ndarray, y_test: np.ndarray):
@@ -137,6 +141,7 @@ class SGD(ModelBoneStructure):
                 class_weight='balanced'
             )
         )
+     
      
     @task(name='Train Model', cache_policy=NO_CACHE)
     def fit(self, x: np.ndarray, y: np.ndarray) -> SGDClassifier:
