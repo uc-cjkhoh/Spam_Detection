@@ -6,7 +6,7 @@ evaluation/mlruns/
 evaluation/prefect/
 evaluation/*.csv
 evaluation/test.ipynb
-deployment/
+deploy/
 __pycache__/
 mlartifacts/
 src/__pycache__/

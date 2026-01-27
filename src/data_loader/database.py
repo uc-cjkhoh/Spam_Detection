@@ -4,6 +4,8 @@ import mysql.connector
 from sqlalchemy import create_engine, MetaData, Table, Column, BigInteger, DateTime, SmallInteger, Boolean, Double, String
 from sqlalchemy.dialects.mysql import insert
 
+from prefect import task
+from prefect.cache_policies import NO_CACHE 
   
 class Database:
     def __init__(self, host, port, user, password):
@@ -13,6 +15,7 @@ class Database:
         self.password = password
         self.connector = self.initialize_db_connection()
         self.cur = self.connector.cursor()
+ 
  
     def initialize_db_connection(self):
         try:     
@@ -25,28 +28,17 @@ class Database:
         except Exception as e:
             raise Exception(e)
         
+        
     def run_statement(self, statement: str):
         self.cur.execute(statement)
         self.connector.commit()
+      
       
     def get_records(self, query, columns: list) -> pd.DataFrame:
         self.cur.execute(query)
         data = pd.DataFrame(self.cur.fetchall(), columns=columns)
         return data
     
-    def close_connection(self):
-        try:
-            if self.cur:
-                self.cur.close()
-        except Exception as e:
-            raise Exception(f"Warning: Failed to close cursor: {e}")
-        
-        try:
-            if self.connector:
-                self.connector.close()
-        except Exception as e:
-            raise Exception(f"Warning: Failed to close connector: {e}")
-        
      
     def save_to_mysql(self, data: dict):
         engine = create_engine(f'mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/sms_spam_cd')
@@ -82,3 +74,25 @@ class Database:
             conn.commit()
             
         engine.dispose() 
+    
+    
+    @task(name='Insert/Update MySQL', cache_policy=NO_CACHE)
+    def update_db(self, data): 
+        """Update result of the model classification to MySQL""" 
+        self.run_statement('UPDATE sms_spam_cd.metadata_result SET last_batch = False')
+        self.save_to_mysql(data) 
+    
+    
+    def close_connection(self):
+        try:
+            if self.cur:
+                self.cur.close()
+        except Exception as e:
+            raise Exception(f"Warning: Failed to close cursor: {e}")
+        
+        try:
+            if self.connector:
+                self.connector.close()
+        except Exception as e:
+            raise Exception(f"Warning: Failed to close connector: {e}")
+        

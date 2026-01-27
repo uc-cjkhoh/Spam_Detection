@@ -5,7 +5,7 @@ import pandas as pd
 
 from prefect import flow 
  
-from src.utils.util import setup_core_components, update_db, preprocess_data, stratified_sampling, oversampling, load_train_data, load_test_data
+from src.utils.util import setup_core_components, preprocess_data, stratified_sampling, oversampling, load_train_data, load_test_data
   
 
 @flow(name='Active Learning Pipeline')
@@ -67,15 +67,15 @@ def main(args):
             'last_batch': [1] * len(data_id)
         }).to_dict(orient='records')
         
-        # update mysqlw
-        update_db(database, data_to_sql)
+        # update mysql
+        database.update_db(data_to_sql)
          
     except Exception as e:
         raise Exception(e)
     finally:
         database.close_connection() 
-               
-               
+
+
 if __name__ == '__main__': 
     p = argparse.ArgumentParser(description='SMS Spam Detection')
     p.add_argument('-u', '--mlflow_uri', type=str, default='http://10.168.49.12:5000', help='override mlflow tracking uri, else uses ./mlruns')
@@ -85,7 +85,7 @@ if __name__ == '__main__':
     p.add_argument('-n', '--number_of_uncertain', type=int, default=1000, help='configure the number of uncertain message for human label')
     p.add_argument('-t', '--threshold', type=float, default=0.975, help='configure the confidence score threshold')
     args = p.parse_args()
-        
+    
     mlflow.set_tracking_uri(args.mlflow_uri)
     mlflow.set_experiment(args.experiment)
-    main(args)  
+    main(args)

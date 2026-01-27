@@ -8,7 +8,7 @@ from imblearn.over_sampling import SMOTE
 from langchain_huggingface import HuggingFaceEmbeddings 
 from langchain.schema import Document 
 
-from src.data_loader.connection import Database
+from src.data_loader.database import Database
 from src.vector_database.vectorstore import VectorStore 
 from src.ml.model_training import SGD 
 from src.config_folder.config_loader import get_config
@@ -97,7 +97,7 @@ def stratified_sampling(config, db):
     return data['id'], data['datetime'], data[['payload']]
  
 
-@task(name='Data Preprocessing', cache_policy=NO_CACHE)
+@task(name='Feature Engineering and Data Transformation', cache_policy=NO_CACHE)
 def preprocess_data(embedding_model, sms_message: pd.DataFrame, target_column: str) -> np.ndarray:  
     features = get_normalized_messages(sms_message, target_column=target_column) 
     
@@ -141,9 +141,6 @@ def load_train_data(args, config, database, embedding_model, vectorstore):
     @task(name='Load MySQL data', cache_policy=NO_CACHE)
     def load_mysql_data():
         mysql_data = database.get_records(config.labeled_data, columns=[config.data.target_column, args.target_column]) 
-        if len(mysql_data) < 384:
-            return np.array([]), np.array([])
-            
         mysql_data_labels = mysql_data.pop(args.target_column)
         mysql_data_embeddings = preprocess_data(
             embedding_model=embedding_model,
@@ -180,13 +177,4 @@ def load_test_data(args, config, database, embedding_model):
         return x_test, y_test
     else:
         raise ValueError('Missing test data in sql table')
-
  
-@task(name='Insert/Update MySQL', cache_policy=NO_CACHE)
-def update_db(db, data): 
-    """Update result of the model classification to MySQL"""
-    # reset last_batch column
-    db.run_statement('UPDATE sms_spam_cd.metadata_result SET last_batch = False')
-    
-    # save result to mysql
-    db.save_to_mysql(data=data) 

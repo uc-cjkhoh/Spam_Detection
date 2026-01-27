@@ -2,7 +2,7 @@ import pandas as pd
 import pytest  
 from unittest.mock import MagicMock, patch 
 
-from src.data_loader.connection import Database
+from src.data_loader.database import Database
   
         
 @pytest.fixture
