@@ -109,7 +109,7 @@ class ModelBoneStructure():
             "support": support
         })
        
-        output_path = "./logs/evaluation/model_metrics.csv"
+        output_path = "./evaluation/model_metrics.csv"
 
         df.to_csv(
             output_path,

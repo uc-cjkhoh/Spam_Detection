@@ -1,11 +1,9 @@
-logs/
 data/
 mlruns/
 prefect/
 evaluation/mlruns/
 evaluation/prefect/
 evaluation/*.csv
-evaluation/test.ipynb
 deploy/
 __pycache__/
 mlartifacts/

@@ -63,8 +63,7 @@ class Database:
 
         Args:
             data (dict): data to save
-        """
-        engine = create_engine(f'mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/sms_spam_cd')
+        """ 
         metadata = MetaData()
         target_table = Table(
             "metadata_result",
@@ -80,9 +79,9 @@ class Database:
             schema='sms_spam_cd'
         )
         
-        metadata.create_all(engine)
+        metadata.create_all(self.engine)
         
-        with engine.connect() as conn:
+        with self.engine.connect() as conn:
             insert_statement = insert(target_table).values(data)
         
             on_duplicate_key_statement = insert_statement.on_duplicate_key_update(
@@ -94,25 +93,12 @@ class Database:
             )
             
             conn.execute(on_duplicate_key_statement)
-            conn.commit()
+            conn.commit() 
             
-        engine.dispose() 
-    
     
     @task(name="Disconnect MySQL", cache_policy=NO_CACHE)
     def close_connection(self):
         """
         Disconnect connected MySQL
         """
-        try:
-            if self.cur:
-                self.cur.close()
-        except Exception as e:
-            raise Exception(f"Warning: Failed to close cursor: {e}")
-        
-        try:
-            if self.connector:
-                self.connector.close()
-        except Exception as e:
-            raise Exception(f"Warning: Failed to close connector: {e}")
-        
+        self.engine.dispose()

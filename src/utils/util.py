@@ -33,8 +33,7 @@ def setup_core_components(args) -> tuple[dict, Database, HuggingFaceEmbeddings, 
     
     config = get_config() 
     
-    os.makedirs('./data/vector', exist_ok=True)
-    os.makedirs('./logs/evaluation', exist_ok=True)
+    os.makedirs('./data/vector', exist_ok=True) 
       
     # 1. setup connection to mysql
     database = Database(
@@ -74,7 +73,7 @@ def setup_core_components(args) -> tuple[dict, Database, HuggingFaceEmbeddings, 
         sys.exit(f"Please finish labelling the data in table `sms_spam_cd.initial_data`")
 
     # 7. create or load vector database
-    if vectorstore.filename in os.listdir(vectorstore.directory):
+    if vectorstore.filename + '.pkl' in os.listdir(vectorstore.directory):
         # retrieve embeddings from vectorstore
         vectorstore.load_index(folder_path=vectorstore.directory, index_name=vectorstore.filename)
     else:
@@ -107,10 +106,10 @@ def stratified_sampling(config, db) -> tuple[pd.Series, pd.Series, pd.DataFrame]
         tuple[pd.Series, pd.Series, pd.DataFrame]: id, datetime, payload from MySQL 
     """
     data = db.get_records(config.data.query)
-    return data['id'], data['datetime'], data[['payload']]
+    return data['id'], data['current_datetime'], data[['payload']]
  
 
-@task(name='Feature Engineering and Data Transformation', cache_policy=NO_CACHE)
+@task(name='Feature Engineering and Sentence Embeddings', cache_policy=NO_CACHE)
 def preprocess_data(embedding_model: HuggingFaceEmbeddings, sms_message: pd.DataFrame, target_column: str) -> np.ndarray:  
     """Extract features from raw text and perform transformation such as text normalization and cleaning
 
