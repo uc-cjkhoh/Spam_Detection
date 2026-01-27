@@ -6,8 +6,9 @@ initial_data:
   from 
     sms_spam_cd.initial_data 
   where 
-    day(datetime) != 22
+    day(datetime) in (16, 17, 18)
   '
+
 
 # test data
 test_data:
@@ -17,8 +18,21 @@ test_data:
   from 
     sms_spam_cd.initial_data 
   where 
-    day(datetime) = 22
+    day(datetime) = 19
   '
+
+
+# get human labeled data in mysql
+labeled_data: 
+  "select 
+    data.payload,
+    mr.spam_label
+  from 
+    sms_spam_cd.metadata_result mr 
+    inner join sms_spam_cd.data_tdr_spam_filter data on mr.id = data.id 
+  where
+    mr.label_status in (-1)"
+ 
 
 # stratified sampling
 data: 
@@ -45,18 +59,5 @@ data:
     FROM
       StratifiedData
     WHERE
-      rn <= 500'
-  column_name: ['id', 'datetime', 'payload']
+      rn <= 500' 
   target_column: 'payload'
-
-# get human labeled data in mysql
-labeled_data: 
-  "select 
-    data.payload,
-    mr.spam_label
-  from 
-    sms_spam_cd.metadata_result mr 
-    inner join sms_spam_cd.data_tdr_spam_filter data on mr.id = data.id 
-  where
-    mr.label_status in (-1)"
- 

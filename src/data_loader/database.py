@@ -8,7 +8,16 @@ from prefect.cache_policies import NO_CACHE
 
 
 class Database:
-    def __init__(self, host, port, user, password):
+    def __init__(self, host: str, port: int, user: str, password: str):
+        """
+        Initiate MySQL Connection
+
+        Args:
+            host (str): host name
+            port (int): port number
+            user (str): username
+            password (str): password
+        """
         self.host = host
         self.port = port
         self.user = user
@@ -18,12 +27,27 @@ class Database:
   
     @task(name="Run SQL Statement")
     def run_statement(self, statement: str):
+        """
+        Run SQL statement like DDL, DML
+
+        Args:
+            statement (str): statement to run
+        """
         with self.engine.begin() as conn:
             conn.execute(text(statement))
       
     
     @task(name="Retrieve Records From MySQL", cache_policy=NO_CACHE)  
-    def get_records(self, query, columns: list) -> pd.DataFrame:
+    def get_records(self, query: str) -> pd.DataFrame:
+        """
+        Retrieve data from MySQL
+
+        Args:
+            query (str): query to run
+
+        Returns:
+            pd.DataFrame
+        """
         with self.engine.connect() as conn:
             result = conn.execute(text(query))
             rows = result.fetchall()
@@ -34,6 +58,12 @@ class Database:
     
     @task(name="Save to MySQL", cache_policy=NO_CACHE)
     def save_to_mysql(self, data: dict):
+        """
+        Save data to MySQL
+
+        Args:
+            data (dict): data to save
+        """
         engine = create_engine(f'mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/sms_spam_cd')
         metadata = MetaData()
         target_table = Table(
@@ -71,6 +101,9 @@ class Database:
     
     @task(name="Disconnect MySQL", cache_policy=NO_CACHE)
     def close_connection(self):
+        """
+        Disconnect connected MySQL
+        """
         try:
             if self.cur:
                 self.cur.close()

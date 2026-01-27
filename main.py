@@ -85,7 +85,7 @@ def main(args):
 if __name__ == '__main__': 
     p = argparse.ArgumentParser(description='SMS Spam Detection')
     p.add_argument('-u', '--mlflow_uri', type=str, default='http://10.168.49.12:5000', help='override mlflow tracking uri, else uses ./mlruns')
-    p.add_argument('-e', '--experiment', type=str, default='TRAIN_ON_ONE_DAY', help='name of the experiment in mlflow')
+    p.add_argument('-e', '--experiment', type=str, default='TRAIN_ON_THREE_DAY', help='name of the experiment in mlflow')
     p.add_argument('-c', '--target_column', type=str, default='spam_label', help='the column in database that indicate the type of sms (spam or ham)')
     p.add_argument('-s', '--skip_initialization', type=bool, default=True, help='whether to skip model initialization')
     p.add_argument('-n', '--number_of_uncertain', type=int, default=500, help='configure the number of uncertain message for human label')

@@ -9,6 +9,7 @@ from prefect.cache_policies import NO_CACHE
 
 class SMSTextCleaner:
     def __init__(self): 
+        """ Define character to convert """
         self.char_replacements = {
             '0': 'o',
             '1': 'i',
@@ -56,7 +57,14 @@ class SMSTextCleaner:
         ]
     
     def _normalize_bold(self, match):
-        """Convert bold unicode to normal"""
+        """Convert bold unicode to normal
+         
+        Args:
+            match (re.Match)
+
+        Returns:
+            str: replaced character
+        """
         char = match.group(0)
         code = ord(char)
         if 0x1D400 <= code <= 0x1D419:  # Bold capitals
@@ -66,7 +74,14 @@ class SMSTextCleaner:
         return char
     
     def _normalize_italic(self, match):
-        """Convert italic unicode to normal"""
+        """Convert italic unicode to normal
+
+        Args:
+            match (re.Match)
+
+        Returns:
+            str: replaced character
+        """
         char = match.group(0)
         code = ord(char)
         if 0x1D434 <= code <= 0x1D44D:  # Italic capitals
@@ -76,7 +91,14 @@ class SMSTextCleaner:
         return char
     
     def _normalize_sans(self, match):
-        """Convert sans-serif unicode to normal"""
+        """Convert sans-serif unicode to normal
+
+        Args:
+            match (re.Match)
+
+        Returns:
+            str: replaced character
+        """
         char = match.group(0)
         code = ord(char)
         if 0x1D5A0 <= code <= 0x1D5B9:  # Sans capitals
@@ -86,7 +108,14 @@ class SMSTextCleaner:
         return char
     
     def remove_excessive_whitespace(self, text: str) -> str:
-        """Remove leading/trailing/excessive whitespace and normalize newlines"""
+        """Remove leading/trailing/excessive whitespace and normalize newlines
+
+        Args:
+            text (str): raw text in string data type
+
+        Returns:
+            str: processed text
+        """
         # Remove leading/trailing whitespace
         text = text.strip()
         # Replace multiple spaces with single space
@@ -98,7 +127,14 @@ class SMSTextCleaner:
         return text
     
     def normalize_unicode_chars(self, text: str) -> str:
-        """Normalize fancy unicode characters to standard ASCII"""
+        """Normalize fancy unicode characters to standard ASCII
+
+        Args:
+            text (str): text contains emoji, symbol, other special characters
+
+        Returns:
+            str: processed text
+        """
         for pattern, normalizer in self.unicode_patterns:
             text = re.sub(pattern, normalizer, text)
         return text
@@ -340,19 +376,16 @@ class SMSTextCleaner:
         return features
     
     def clean(self, text: str, remove_emojis: bool = True, normalize_numbers: bool = True, to_lowercase: bool = True) -> str:
-        """
-        Main cleaning pipeline
-        
-        Parameters:
-        -----------
-        text: str - Input SMS text
-        remove_emojis: bool - Whether to remove emojis
-        normalize_numbers: bool - Whether to replace phone/currency with tokens
-        to_lowercase: bool - Whether to convert to lowercase
-        
+        """Text Cleaning Pipeline
+
+        Args:
+            text (str): raw text
+            remove_emojis (bool, optional): Whether to remove emojis. Defaults to True.
+            normalize_numbers (bool, optional): Whether to replace phone or currency to text. Defaults to True.
+            to_lowercase (bool, optional): Whether to convert text to lowercase. Defaults to True.
+
         Returns:
-        --------
-        str: Cleaned text
+            str: Cleaned text
         """
         if not isinstance(text, str):
             return ""

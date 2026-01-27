@@ -1,17 +1,18 @@
 import os  
 import sys
+import argparse
 import numpy as np
 import pandas as pd  
 
-from sklearn.preprocessing import RobustScaler 
 from imblearn.over_sampling import SMOTE 
-from langchain_huggingface import HuggingFaceEmbeddings 
+from sklearn.preprocessing import RobustScaler 
 from langchain.schema import Document 
+from langchain_huggingface import HuggingFaceEmbeddings 
 
-from src.data_loader.database import Database
-from src.vector_database.vectorstore import VectorStore 
 from src.ml.model_training import SGD 
+from src.data_loader.database import Database
 from src.config_folder.config_loader import get_config
+from src.vector_database.vectorstore import VectorStore 
 from src.data_loader.preprocessing import get_normalized_messages
 
 from prefect import task
@@ -19,7 +20,17 @@ from prefect.cache_policies import NO_CACHE
 
 
 @task(name='Setup Environment', cache_policy=NO_CACHE)
-def setup_core_components(args): 
+def setup_core_components(args) -> tuple[dict, Database, HuggingFaceEmbeddings, VectorStore, SGD, SGD]: 
+    """Setup require directories, files, and components (models, vectorstore)
+
+    Args:
+        args (argparse.Namespace): terminal arguments
+
+    Returns:
+        tuple[dict, Database, HuggingFaceEmbeddings, VectorStore, SGD, SGD]: 
+        local configuration, connected mysql, faiss, SGDClassifier, SGDClassifier
+    """
+    
     config = get_config() 
     
     os.makedirs('./data/vector', exist_ok=True)
@@ -58,12 +69,12 @@ def setup_core_components(args):
     # 5. get initial data
     initial_data = database.get_records(config.initial_data)
     
-    # terminate if the labels are not done yet
+    # 6. terminate if the labels are not done yet
     if initial_data[args.target_column].isna().sum():  
         sys.exit(f"Please finish labelling the data in table `sms_spam_cd.initial_data`")
 
-    # check if vectorstore created
-    if len(os.listdir(vectorstore.directory)) > 0:
+    # 7. create or load vector database
+    if vectorstore.filename in os.listdir(vectorstore.directory):
         # retrieve embeddings from vectorstore
         vectorstore.load_index(folder_path=vectorstore.directory, index_name=vectorstore.filename)
     else:
@@ -78,19 +89,39 @@ def setup_core_components(args):
             Document(page_content=payload, metadata={'label': label, "faiss_id": i})
             for i, (payload, label) in enumerate(zip(payloads, labels))
         ] 
+        
         vectorstore.write_index(documents)
        
     return config, database, embedding_model, vectorstore, teacher, student
  
  
 @task(name='Stratified Sampling', cache_policy=NO_CACHE)
-def stratified_sampling(config, db):
-    data = db.get_records(config.data.query, columns=config.data.column_name)
+def stratified_sampling(config, db) -> tuple[pd.Series, pd.Series, pd.DataFrame]:
+    """Stratified Sampling
+
+    Args:
+        config (PyYAML): local configuration
+        db (Database): database object
+
+    Returns:
+        tuple[pd.Series, pd.Series, pd.DataFrame]: id, datetime, payload from MySQL 
+    """
+    data = db.get_records(config.data.query)
     return data['id'], data['datetime'], data[['payload']]
  
 
 @task(name='Feature Engineering and Data Transformation', cache_policy=NO_CACHE)
-def preprocess_data(embedding_model, sms_message: pd.DataFrame, target_column: str) -> np.ndarray:  
+def preprocess_data(embedding_model: HuggingFaceEmbeddings, sms_message: pd.DataFrame, target_column: str) -> np.ndarray:  
+    """Extract features from raw text and perform transformation such as text normalization and cleaning
+
+    Args:
+        embedding_model (HuggingFaceEmbeddings): Transformer to convert text to embeddings
+        sms_message (pd.DataFrame): DataFrame that contain the payloads or messages
+        target_column (str): the column name for the payloads or messages
+
+    Returns:
+        np.ndarray: embeddings
+    """
     features = get_normalized_messages(sms_message, target_column=target_column) 
     
     messages = features.pop(target_column)
@@ -104,41 +135,75 @@ def preprocess_data(embedding_model, sms_message: pd.DataFrame, target_column: s
 
 
 @task(name='Oversampling', cache_policy=NO_CACHE)
-def oversampling(x, y):
+def oversampling(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Perform oversampling
+
+    Args:
+        x (np.ndarray): independent features
+        y (np.ndarray): dependent feature
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: oversampled x and y
+    """
     smote = SMOTE(random_state=42)
     resampled_x, resampled_y = smote.fit_resample(x, y)    
     return resampled_x, resampled_y
 
 
 @task(name='Load train data', cache_policy=NO_CACHE)
-def load_train_data(args, config, database, embedding_model, vectorstore): 
+def load_train_data(args: argparse.Namespace, config: dict, database: Database, 
+                    embedding_model: HuggingFaceEmbeddings, vectorstore: VectorStore) -> tuple[np.ndarray, np.ndarray]: 
+    """Load training data
+
+    Args:
+        args (argparse.Namespace): terminal arguments
+        config (dict): local configuration
+        database (Database): connected database (MySQL)
+        embedding_model (HuggingFaceEmbeddings): embed_model
+        vectorstore (VectorStore): vectorstore (faiss)
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: embeddings, labels
+    """
+    
     @task(name='Load initial data', cache_policy=NO_CACHE)
     def load_initial_data():
+        """Load initial data
+
+        Returns:
+            np.ndarray: robust-scaled embeddings
+            np.ndarray: corresponding labels
+        """
         scaler = RobustScaler()
         
         initial_embeddings = vectorstore.faiss.index.reconstruct_n(0, -1)  
         initial_features = pd.read_csv(f'./data/initial_data_features_{args.experiment}.csv')
         initial_features = scaler.fit_transform(initial_features)
         
-        scaled_embeddings = np.hstack((initial_features, initial_embeddings))
+        scaled_initial_embeddings = np.hstack((initial_features, initial_embeddings))
 
         n = vectorstore.faiss.index.ntotal
-        labels = np.empty(n, dtype=int)
-
+        labels = np.empty(n, dtype=int) 
         for doc in vectorstore.faiss.docstore._dict.values():
             labels[doc.metadata["faiss_id"]] = doc.metadata['label']
  
-        return scaled_embeddings, labels
+        return scaled_initial_embeddings, labels
    
     @task(name='Load MySQL data', cache_policy=NO_CACHE)
     def load_mysql_data():
-        mysql_data = database.get_records(config.labeled_data, columns=[config.data.target_column, args.target_column]) 
+        """Load human labeled data in MySQL
+
+        Returns:
+            np.ndarray: robust-scaled embeddings
+            np.ndarray: corresponding labels
+        """ 
+        mysql_data = database.get_records(config.labeled_data)
         mysql_data_labels = mysql_data.pop(args.target_column)
         mysql_data_embeddings = preprocess_data(
             embedding_model=embedding_model,
             sms_message=mysql_data, 
             target_column=config.data.target_column
-        )
+        ) 
         
         return mysql_data_embeddings, mysql_data_labels
    
@@ -157,7 +222,21 @@ def load_train_data(args, config, database, embedding_model, vectorstore):
 
 
 @task(name='Load test data', cache_policy=NO_CACHE)
-def load_test_data(args, config, database, embedding_model):
+def load_test_data(args: argparse.Namespace, config: dict, database: Database, embedding_model: HuggingFaceEmbeddings):
+    """Load test data (for model evaluation)
+
+    Args:
+        args (argparse.Namespace): terminal arguments 
+        config (dict): local configuration
+        database (Database): connected database
+        embedding_model (HuggingFaceEmbeddings): embedding transformer
+
+    Raises:
+        ValueError: if the table has no data
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: testing embeddings and labels 
+    """
     test_data = database.get_records(config.test_data) 
     
     if test_data.shape[0] > 0:
