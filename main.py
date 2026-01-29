@@ -20,11 +20,8 @@ def main(args):
     
         # initial teacher model if not skip
         student.fit(x_train, y_train)
-        
-        # evaluate teacher model
-        # student.evaluate(x_test, y_test, experiment=args.experiment)
-        
-        # save teacher model
+          
+        # evaluate and save teacher model
         student.evaluate(x_test, y_test)
         
         for i in range(5):
@@ -53,7 +50,7 @@ def main(args):
             
             # label based on vectorstore
             uncertain_embeddings = scaled_embeddings[uncertain_ids]
-            labels_by_vectordb = vectorstore.label_uncertains(uncertain_embeddings)
+            labels_by_vectordb = vectorstore.label_uncertains(new_batch_data_msg[uncertain_ids].to_list())
             
             # replace teacher model's uncertain result with labels made by vectorstore
             result[uncertain_ids] = labels_by_vectordb
@@ -64,11 +61,8 @@ def main(args):
              
             # train student model
             student.fit(x_train, y_train.reshape(-1, 1))
-        
-            # evaluate student model
-            # student.evaluate(x_test, y_test, experiment=args.experiment) 
-            # save student model
-            
+         
+            # evaluate and save student model
             student.evaluate(x_test, y_test)
          
             # save result to mysql
@@ -101,7 +95,7 @@ if __name__ == '__main__':
     p.add_argument('-c', '--target_column', type=str, default='spam_label', help='the column in database that indicate the type of sms (spam or ham)')
     p.add_argument('-s', '--skip_initialization', type=bool, default=True, help='whether to skip model initialization')
     p.add_argument('-n', '--number_of_uncertain', type=int, default=500, help='configure the number of uncertain message for human label')
-    p.add_argument('-t', '--threshold', type=float, default=0.975, help='configure the confidence score threshold')
+    p.add_argument('-t', '--threshold', type=float, default=0.98, help='configure the confidence score threshold')
     args = p.parse_args()
     
     mlflow.set_tracking_uri(args.mlflow_uri)

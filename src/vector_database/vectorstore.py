@@ -4,7 +4,8 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from prefect import task
 from prefect.cache_policies import NO_CACHE 
 
-from tqdm import tqdm
+from tqdm import tqdm 
+from collections import Counter
 import numpy as np
 
 
@@ -68,7 +69,7 @@ class VectorStore:
 
 
     @task(name="Label uncertain data", cache_policy=NO_CACHE)
-    def label_uncertains(self, embeddings: np.ndarray) -> np.ndarray:
+    def label_uncertains(self, sentences: list) -> np.ndarray:
         """Label uncertain embeddings with vectorstore's similarity search
 
         Args:
@@ -81,17 +82,39 @@ class VectorStore:
         if self.faiss is None:
             raise ValueError("No existing faiss index")
         
-        # cut embeddings from 1049 dimension to 1024 dimension (remove from front)
-        embeddings = embeddings[:, embeddings.shape[-1] - 1024:]
+        # # cut embeddings from 1049 dimension to 1024 dimension (remove from front)
+        # embeddings = embeddings[:, embeddings.shape[-1] - 1024:]
         
         
-        docs = [
-            self.faiss.similarity_search_by_vector(embedding, k=1)[0]
-            for embedding in embeddings
-        ]
+        # docs = [
+        #     self.faiss.similarity_search_by_vector(embedding, k=1)[0]
+        #     for embedding in embeddings
+        # ]
             
-        labels = [
-            doc.metadata['label'] for doc in docs
-        ]
+        # labels = [
+        #     doc.metadata['label'] for doc in docs
+        # ]
             
-        return np.asarray(labels)
+        # return np.asarray(labels)
+        
+        labels_status = []
+        labels = []
+        
+        for sentence in tqdm(sentences):
+            top_k_labels = []
+            
+            docs = self.faiss.similarity_search(query=sentence, k=50)
+            for doc in docs:
+                top_k_labels.append(doc.metadata['label'])
+                
+            labels.append(np.argmax(Counter(top_k_labels).values()))
+            
+            counts = np.bincount(top_k_labels) / len(top_k_labels)
+            entropy = -1 * np.sum([p * np.log2(p) for p in counts])
+            
+            if entropy < 0.8:
+                labels_status.append(-1)
+                labels.append()
+            else:
+                labels_status.append(1)
+                labels.append()

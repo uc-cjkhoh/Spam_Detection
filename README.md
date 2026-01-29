@@ -93,3 +93,6 @@ Add pydantic to validate data in the pipeline
 
 - Automate labelling process after each epochs
 Currently, the human labelling are required after each training. Find a way to automate this to save some time
+
+- Initial Dataset Optimization
+The question of "could I reduce the initial data lesser without lossing performance" always comes to my mind. There is one more method that I did not has a change to try. What if we not brute forcely select a time range in every day ? What if we could really find out the hours that cover most sms spam or ham message patterns ? 

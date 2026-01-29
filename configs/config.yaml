@@ -6,7 +6,7 @@ initial_data:
   from 
     sms_spam_cd.initial_data 
   where 
-    day(datetime) != 22 
+    day(datetime) != 22 and rand() < 0.5
   '
 
 
@@ -60,5 +60,5 @@ data:
     FROM
       StratifiedData
     WHERE
-      rn <= 250' 
+      rn <= 500' 
   target_column: 'payload'
