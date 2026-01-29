@@ -4,6 +4,9 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from prefect import task
 from prefect.cache_policies import NO_CACHE 
 
+from tqdm import tqdm
+import numpy as np
+
 
 class VectorStore:
     @task(name="Create Vector Database Class", cache_policy=NO_CACHE)
@@ -62,3 +65,33 @@ class VectorStore:
             self.faiss.save_local(folder_path=self.directory, index_name=self.filename)
         else:
             raise ValueError("Cannot save empty index")
+
+
+    @task(name="Label uncertain data", cache_policy=NO_CACHE)
+    def label_uncertains(self, embeddings: np.ndarray) -> np.ndarray:
+        """Label uncertain embeddings with vectorstore's similarity search
+
+        Args:
+            uncertain_embeddings (np.ndarray): uncertain embeddings for model to label
+
+        Returns:
+            np.ndarray: list of binary label (0, 1)
+        """
+        
+        if self.faiss is None:
+            raise ValueError("No existing faiss index")
+        
+        # cut embeddings from 1049 dimension to 1024 dimension (remove from front)
+        embeddings = embeddings[:, embeddings.shape[-1] - 1024:]
+        
+        
+        docs = [
+            self.faiss.similarity_search_by_vector(embedding, k=1)[0]
+            for embedding in embeddings
+        ]
+            
+        labels = [
+            doc.metadata['label'] for doc in docs
+        ]
+            
+        return np.asarray(labels)

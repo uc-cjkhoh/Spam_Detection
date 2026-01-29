@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from typing import Any
+from datetime import datetime
 
 from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import precision_recall_fscore_support
@@ -67,61 +68,45 @@ class ModelBoneStructure():
 
 
     @task(name='Save Model', cache_policy=NO_CACHE)
-    def save(self, input_sample: np.ndarray):
+    def evaluate(self, x_test: np.ndarray, y_test: np.ndarray):
         """Save / Log Model
 
         Args:
             input_sample (np.ndarray): input sample saved to mlflow (for reference only)
         """
         
-        with mlflow.start_run(run_name='Build/Update Model'):
+        with mlflow.start_run(run_name=f'Model_{datetime.now().strftime("%Y%m%d_%H%M%S")}'):
             mlflow.log_param('model_parameters', self.model.get_params())
-            mlflow.sklearn.log_model(
+            
+            x_df = pd.DataFrame(
+                x_test,
+                columns=[f"f{i}" for i in range(x_test.shape[1])]
+            )
+            
+            y_s = pd.Series(y_test, name="y_test")
+
+            signature = mlflow.models.signature.infer_signature(
+                x_df, self.model.predict(x_df)
+            )
+            
+            model_info = mlflow.sklearn.log_model(
                 sk_model=self.model,
-                name=self.model_name,
-                registered_model_name=f'{self.model_name}',
-                input_example=input_sample
-            )   
-    
-    
-    @task(name='Evaluate Model', cache_policy=NO_CACHE)
-    def evaluate(self, x_test: np.ndarray, y_test: np.ndarray):
-        """Evaluation the model performance with basic accuracy metrics
-
-        Args:
-            x_test (np.ndarray): independent features
-            y_test (np.ndarray): dependent feature
-        """
-        
-        y_pred = self.model.predict(x_test)
-        
-        labels = np.unique(y_test)
-        
-        precision, recall, f1, support = precision_recall_fscore_support(
-            y_test,
-            y_pred,
-            labels=labels,
-            average=None
-        ) 
-        
-        df = pd.DataFrame({
-            "model": self.model_name,
-            "class": labels,
-            "precision": precision,
-            "recall": recall,
-            "f1": f1,
-            "support": support
-        })
+                name=f'model_{datetime.now().strftime("%Y%m%d_%H%M%S")}',
+                registered_model_name=self.model_name,
+                signature=signature,
+                input_example=x_df.head(5)
+            )  
+             
+            eval_data = x_df.copy()
+            eval_data["y_test"] = y_s
+ 
+            mlflow.models.evaluate(
+                model_info.model_uri,
+                data=eval_data,
+                targets='y_test',
+                model_type='classifier'
+            )
        
-        output_path = "./evaluation/model_metrics.csv"
-
-        df.to_csv(
-            output_path,
-            mode="a",
-            header=not os.path.exists(output_path),
-            index=False
-        )
-                
       
 class SGD(ModelBoneStructure):
     @task(name="Create New SGDClassifier Object", cache_policy=NO_CACHE)
@@ -155,16 +140,16 @@ class SGD(ModelBoneStructure):
             SGDClassifier: target model
         """
         
-        # use HDBSCAN to create clusters
-        hdb = HDBSCAN(min_cluster_size=5)
-        cluster_id = hdb.fit_predict(x)
-        counts = np.unique(cluster_id, return_counts=True)
+        # # use HDBSCAN to create clusters
+        # hdb = HDBSCAN(min_cluster_size=5)
+        # cluster_id = hdb.fit_predict(x)
+        # counts = np.unique(cluster_id, return_counts=True)
         
-        # create sample weight based on the number of data in each cluster
-        weights = np.asarray([((len(x)) / (len(counts[0]) * counts[1][id])) for id in cluster_id])
+        # # create sample weight based on the number of data in each cluster
+        # weights = np.asarray([((len(x)) / (len(counts[0]) * counts[1][id])) for id in cluster_id])
         
         # fit to model
-        self.model.fit(x, y, sample_weight=weights)
+        self.model.fit(x, y)
         
         return self.model
     

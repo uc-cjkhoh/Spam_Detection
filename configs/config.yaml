@@ -6,7 +6,7 @@ initial_data:
   from 
     sms_spam_cd.initial_data 
   where 
-    day(datetime) in (16, 17, 18)
+    day(datetime) != 22 
   '
 
 
@@ -18,7 +18,7 @@ test_data:
   from 
     sms_spam_cd.initial_data 
   where 
-    day(datetime) = 19
+    day(datetime) = 22 
   '
 
 
@@ -31,7 +31,8 @@ labeled_data:
     sms_spam_cd.metadata_result mr 
     inner join sms_spam_cd.data_tdr_spam_filter data on mr.id = data.id 
   where
-    mr.label_status in (-1)"
+    mr.label_status in (-1)
+  "
  
 
 # stratified sampling
@@ -59,5 +60,5 @@ data:
     FROM
       StratifiedData
     WHERE
-      rn <= 500' 
+      rn <= 250' 
   target_column: 'payload'

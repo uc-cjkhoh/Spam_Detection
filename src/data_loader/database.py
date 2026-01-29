@@ -1,6 +1,7 @@
 import pandas as pd 
 
-from sqlalchemy import create_engine, text, MetaData, Table, Column, BigInteger, DateTime, SmallInteger, Boolean, Double, String
+from sqlalchemy import create_engine, text, MetaData, Table, Column
+from sqlalchemy.dialects.mysql import BIGINT, DATETIME, SMALLINT, DOUBLE, VARCHAR
 from sqlalchemy.dialects.mysql import insert
 
 from prefect import task
@@ -25,7 +26,7 @@ class Database:
         self.engine = create_engine("mysql+pymysql://unified:unified@10.168.51.196:3306/sms_spam_cd")
   
   
-    @task(name="Run SQL Statement")
+    @task(name="Run SQL Statement", cache_policy=NO_CACHE)
     def run_statement(self, statement: str):
         """
         Run SQL statement like DDL, DML
@@ -66,16 +67,16 @@ class Database:
         """ 
         metadata = MetaData()
         target_table = Table(
-            "metadata_result",
+            "label_by_vectordb_2",
             metadata,
-            Column('row_id', BigInteger, primary_key=True),
-            Column('id', BigInteger, nullable=False),
-            Column('datetime', DateTime, nullable=True),
-            Column('spam_label', SmallInteger, nullable=True),
-            Column('confidence_score', Double, nullable=True),
-            Column('label_status', String(20), nullable=True),
-            Column('model', String(20), nullable=True),
-            Column('last_batch', Boolean, nullable=True),
+            Column('row_id', BIGINT, primary_key=True),
+            Column('id', BIGINT, nullable=False),
+            Column('datetime', DATETIME, nullable=True),
+            Column('spam_label', SMALLINT, nullable=True),
+            Column('confidence_score', DOUBLE, nullable=True),
+            Column('label_status', VARCHAR(20), nullable=True),
+            Column('model', VARCHAR(20), nullable=True),
+            Column('iter_involved', VARCHAR(10), nullable=True),
             schema='sms_spam_cd'
         )
         
@@ -87,9 +88,9 @@ class Database:
             on_duplicate_key_statement = insert_statement.on_duplicate_key_update(
                 spam_label=insert_statement.inserted.spam_label,
                 confidence_score=insert_statement.inserted.confidence_score,
-                label_status=insert_statement.inserted.label_status,
-                last_batch=insert_statement.inserted.last_batch,
-                model=insert_statement.inserted.model
+                label_status=insert_statement.inserted.label_status, 
+                model=insert_statement.inserted.model,
+                iter_involved=insert_statement.inserted.iter_involved
             )
             
             conn.execute(on_duplicate_key_statement)

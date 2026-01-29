@@ -57,7 +57,7 @@ def setup_core_components(args) -> tuple[dict, Database, HuggingFaceEmbeddings, 
     # 3. setup vectorstore
     vectorstore = VectorStore(
         directory='./data/vector', 
-        filename=f'sms_embeddings_{args.experiment}',
+        filename=f'sms_embeddings_{str.lower(args.experiment)}',
         embedding=embedding_model
     )
     
@@ -82,7 +82,7 @@ def setup_core_components(args) -> tuple[dict, Database, HuggingFaceEmbeddings, 
         features = get_normalized_messages(initial_data, config.data.target_column)
         payloads = features.pop(config.data.target_column)
         
-        features.to_csv(f'./data/initial_data_features_{args.experiment}.csv', index=False)
+        features.to_csv(f'./data/initial_data_features_{str.lower(args.experiment)}.csv', index=False)
         
         documents = [
             Document(page_content=payload, metadata={'label': label, "faiss_id": i})
@@ -180,7 +180,7 @@ def load_train_data(args: argparse.Namespace, config: dict, database: Database,
         scaler = RobustScaler()
         
         initial_embeddings = vectorstore.faiss.index.reconstruct_n(0, -1)  
-        initial_features = pd.read_csv(f'./data/initial_data_features_{args.experiment}.csv')
+        initial_features = pd.read_csv(f'./data/initial_data_features_{str.lower(args.experiment)}.csv')
         initial_features = scaler.fit_transform(initial_features)
         
         scaled_initial_embeddings = np.hstack((initial_features, initial_embeddings))
@@ -192,6 +192,7 @@ def load_train_data(args: argparse.Namespace, config: dict, database: Database,
  
         return scaled_initial_embeddings, labels
    
+   
     @task(name='Load MySQL data', cache_policy=NO_CACHE)
     def load_mysql_data():
         """Load human labeled data in MySQL
@@ -202,6 +203,10 @@ def load_train_data(args: argparse.Namespace, config: dict, database: Database,
         """ 
         
         mysql_data = database.get_records(config.labeled_data)
+        
+        if len(mysql_data) == 0:
+            return np.array([]), np.array([])
+        
         mysql_data_labels = mysql_data.pop(args.target_column)
         mysql_data_embeddings = preprocess_data(
             embedding_model=embedding_model,
@@ -210,6 +215,7 @@ def load_train_data(args: argparse.Namespace, config: dict, database: Database,
         ) 
         
         return mysql_data_embeddings, mysql_data_labels
+   
    
     initial_embeddings, initial_labels = load_initial_data()
     mysql_embeddings, mysql_labels = load_mysql_data()

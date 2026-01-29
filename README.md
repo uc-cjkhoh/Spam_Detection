@@ -88,9 +88,6 @@ ruff check --fix src/
 
 Possible Improvement
 
-- Create Local Initial Dataset And VectorDB For Different MLFlow Experiment
-Currently the initial dataset are globally use by all experiment, which is not every flexible if developer want to perform testing with different initial dataset
-
 - Add Pydantic
 Add pydantic to validate data in the pipeline
 
