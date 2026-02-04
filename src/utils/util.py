@@ -4,8 +4,10 @@ import argparse
 import numpy as np
 import pandas as pd  
 
-from imblearn.over_sampling import SMOTE 
+from collections import Counter
+from sklearn.cluster import HDBSCAN
 from sklearn.preprocessing import RobustScaler 
+from imblearn.over_sampling import SMOTE 
 from langchain.schema import Document 
 from langchain_huggingface import HuggingFaceEmbeddings 
 
@@ -20,15 +22,15 @@ from prefect.cache_policies import NO_CACHE
 
 
 @task(name='Setup Environment', cache_policy=NO_CACHE)
-def setup_core_components(args) -> tuple[dict, Database, HuggingFaceEmbeddings, VectorStore, SGD, SGD]: 
+def setup_core_components(args) -> tuple[dict, Database, HuggingFaceEmbeddings, VectorStore, SGD]: 
     """Setup require directories, files, and components (models, vectorstore)
 
     Args:
         args (argparse.Namespace): terminal arguments
 
     Returns:
-        tuple[dict, Database, HuggingFaceEmbeddings, VectorStore, SGD, SGD]: 
-        local configuration, connected mysql, faiss, SGDClassifier, SGDClassifier
+        tuple[dict, Database, HuggingFaceEmbeddings, VectorStore, SGD]: 
+        local configuration, connected mysql, faiss, SGDClassifier
     """
     
     config = get_config() 
@@ -61,8 +63,7 @@ def setup_core_components(args) -> tuple[dict, Database, HuggingFaceEmbeddings, 
         embedding=embedding_model
     )
     
-    # 4. setup models
-    teacher = SGD(experiment_name=args.experiment, model_name='Teacher') 
+    # 4. setup models 
     student = SGD(experiment_name=args.experiment, model_name='Student')
        
     # 5. get initial data
@@ -91,7 +92,7 @@ def setup_core_components(args) -> tuple[dict, Database, HuggingFaceEmbeddings, 
         
         vectorstore.write_index(documents)
        
-    return config, database, embedding_model, vectorstore, teacher, student
+    return config, database, embedding_model, vectorstore, student
  
  
 @task(name='Stratified Sampling', cache_policy=NO_CACHE)
@@ -136,7 +137,7 @@ def preprocess_data(embedding_model: HuggingFaceEmbeddings, sms_message: pd.Data
 
 
 @task(name='Oversampling', cache_policy=NO_CACHE)
-def oversampling(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def oversampling(x: np.ndarray, y: np.ndarray, k_neighbors=3) -> tuple[np.ndarray, np.ndarray]:
     """Perform oversampling
 
     Args:
@@ -147,7 +148,13 @@ def oversampling(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         tuple[np.ndarray, np.ndarray]: oversampled x and y
     """
     
-    smote = SMOTE(random_state=42)
+    counts = Counter(y)
+    min_class = min(counts.values())
+    
+    if min_class < 3:
+        return x, y
+    
+    smote = SMOTE(k_neighbors=min(k_neighbors, min_class - 1), random_state=42)
     resampled_x, resampled_y = smote.fit_resample(x, y)    
     return resampled_x, resampled_y
 
@@ -177,8 +184,8 @@ def load_train_data(args: argparse.Namespace, config: dict, database: Database,
             np.ndarray: corresponding labels
         """
         
-        scaler = RobustScaler()
-        
+        scaler = RobustScaler() 
+            
         initial_embeddings = vectorstore.faiss.index.reconstruct_n(0, -1)  
         initial_features = pd.read_csv(f'./data/initial_data_features_{str.lower(args.experiment)}.csv')
         initial_features = scaler.fit_transform(initial_features)
@@ -190,7 +197,10 @@ def load_train_data(args: argparse.Namespace, config: dict, database: Database,
         for doc in vectorstore.faiss.docstore._dict.values():
             labels[doc.metadata["faiss_id"]] = doc.metadata['label']
  
-        return scaled_initial_embeddings, labels
+        # select 5 random sample only from each cluster 
+        retent_ids = get_unique_pattern_ids(scaled_initial_embeddings)
+ 
+        return scaled_initial_embeddings[retent_ids], labels[retent_ids]
    
    
     @task(name='Load MySQL data', cache_policy=NO_CACHE)
@@ -219,7 +229,7 @@ def load_train_data(args: argparse.Namespace, config: dict, database: Database,
    
     initial_embeddings, initial_labels = load_initial_data()
     mysql_embeddings, mysql_labels = load_mysql_data()
-
+        
     if len(mysql_embeddings) == 0: 
         x_train, y_train = oversampling(initial_embeddings, initial_labels)
         return x_train, y_train
@@ -257,3 +267,14 @@ def load_test_data(args: argparse.Namespace, config: dict, database: Database, e
     else:
         raise ValueError('Missing test data in sql table')
  
+ 
+@task(name='Remove duplicate patterns', cache_policy=NO_CACHE)
+def get_unique_pattern_ids(embeddings: np.ndarray) -> list[int]: 
+    hdb = HDBSCAN()
+    cluster_id = hdb.fit_predict(embeddings)
+    ids = np.arange(0, embeddings.shape[0], 1)
+    
+    retent_df = pd.DataFrame({'ids': ids, 'cluster_id': cluster_id}) 
+    retent_ids = retent_df.groupby('cluster_id').head(5)['ids'].to_numpy(dtype=int)
+    
+    return retent_ids

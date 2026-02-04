@@ -6,6 +6,7 @@ from prefect.cache_policies import NO_CACHE
 
 from tqdm import tqdm 
 from collections import Counter
+from scipy import stats
 import numpy as np
 
 
@@ -106,15 +107,15 @@ class VectorStore:
             docs = self.faiss.similarity_search(query=sentence, k=50)
             for doc in docs:
                 top_k_labels.append(doc.metadata['label'])
-                
-            labels.append(np.argmax(Counter(top_k_labels).values()))
+            
+            labels.append(stats.mode(np.asarray(top_k_labels)).mode)
             
             counts = np.bincount(top_k_labels) / len(top_k_labels)
             entropy = -1 * np.sum([p * np.log2(p) for p in counts])
             
             if entropy < 0.8:
                 labels_status.append(-1)
-                labels.append()
             else:
                 labels_status.append(1)
-                labels.append()
+                
+        return np.asarray(labels_status), np.asarray(labels)

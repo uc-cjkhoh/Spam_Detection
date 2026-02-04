@@ -13,3 +13,6 @@ langchain-huggingface
 emoji
 pyyaml 
 openpyxl
+fastapi[standard]
+pydantic
+pydantic-settings
