@@ -12,7 +12,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 from src.config_folder.config_loader import get_config
 from src.data_loader.database import Database
-from src.data_loader.preprocessing import feature_engineering
+from src.data_loader.preprocessing import feature_engineering, clean_text
 from src.vector_database.vectorstore import VectorStore 
 from src.ml.model_training import SGD 
 from src.utils.util import create_require_files_and_directories, get_unique_pattern_ids, \
@@ -83,6 +83,7 @@ def setup_environment(config) -> tuple[Database, VectorStore, HuggingFaceEmbeddi
         else:
             logger.info('Get initial data') 
             initial_data = database.get_records(config.initial_data)
+            initial_data[config.target_column] = clean_text(initial_data[config.target_column])
             
             logger.info('Initialize vectorstore with initial data')
             vectorstore.load_with_dataframe(initial_data)
@@ -122,26 +123,39 @@ def load_training_data(config, database, vectorstore, embedding_model) -> tuple[
         logger.info('Retrieve initial data from vectorstore')
         initial_payloads, initial_embeddings, initial_labels = vectorstore.return_pagecontent_embeddings_and_labels()
         
+        logger.info('Perform feature engineering')
         initial_features = feature_engineering(initial_payloads) 
-        combined_initial_embeddings = np.hstack((initial_embeddings, initial_features))
+        
+        logger.info('Stack embeddings and features horizontally')
+        combined_initial_embeddings = np.hstack((initial_features, initial_embeddings))
         
         x_train = combined_initial_embeddings
         y_train = initial_labels
         
+        logger.info('Load labeled data in MySQL')
         prelabeled_data = database.get_records(config.labeled_data)
         
         if len(prelabeled_data) > 0:
             prelabeled_payloads = prelabeled_data[config.target_column]
             prelabeled_labels = prelabeled_data[config.label_column]
             
+            logger.info('Perform feature engineering')
             prelabeled_features = feature_engineering(prelabeled_payloads) 
-            prelabeled_embeddings = embedding_model.embed_documents(prelabeled_payloads)
-            combined_prelabeled_embeddings = np.hstack((prelabeled_embeddings, prelabeled_features))
             
+            logger.info('Perform sentence embeddings')
+            prelabeled_embeddings = embedding_model.embed_documents(prelabeled_payloads)
+            
+            logger.info('Stack embeddings and features horizontally')
+            combined_prelabeled_embeddings = np.hstack((prelabeled_features, prelabeled_embeddings))
+            
+            logger.info('Stack initial data and labeled data vertically')
             x_train = np.vstack((combined_initial_embeddings, combined_prelabeled_embeddings))
             y_train = np.vstack((initial_labels, prelabeled_labels))
         
+        logger.info('Standardizing final embeddings')
         x_train = scaler.fit_transform(x_train)
+        
+        logger.info('Perform oversampling')
         x_train, y_train = oversampling(x_train, y_train) 
         
         return x_train, y_train
@@ -182,9 +196,11 @@ def load_testing_data(config, database, embedding_model) -> tuple[np.ndarray, np
         test_payloads = test_data[config.target_column]
         test_labels = test_data[config.label_column]
         
-        test_features = feature_engineering(test_payloads) 
-        test_embeddings = embedding_model.embed_documents(test_payloads)
-        combined_test_embeddings = np.hstack((test_embeddings, test_features))
+        test_features = feature_engineering(test_payloads)  
+        clean_text_payloads = clean_text(test_payloads)
+        
+        test_embeddings = embedding_model.embed_documents(clean_text_payloads)
+        combined_test_embeddings = np.hstack((test_features, test_embeddings))
         combined_test_embeddings = scaler.fit_transform(combined_test_embeddings)
         
         return combined_test_embeddings, test_labels

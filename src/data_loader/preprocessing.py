@@ -22,16 +22,13 @@ class SMSTextCleaner:
             '$': 's',
             '!': 'i',
         }
-        
-        # Unicode variations to normalize
+         
         self.unicode_patterns = [
-            # Bold/Italic/Sans-serif mathematical alphanumeric symbols
             (r'[𝐀-𝐙𝐚-𝐳]', self._normalize_bold),
             (r'[𝑨-𝒁𝒂-𝒛]', self._normalize_italic),
             (r'[𝙰-𝚉𝚊-𝚣]', self._normalize_sans),
         ]
-        
-        # NEW: Spam keyword categories
+         
         self.financial_keywords = [
             'loan', 'bank', 'interest', 'free', 'bonus', 'claim', 'voucher',
             'win', 'prize', 'cash', 'money', 'credit', 'approved', 'guaranteed'
@@ -67,9 +64,9 @@ class SMSTextCleaner:
         """
         char = match.group(0)
         code = ord(char)
-        if 0x1D400 <= code <= 0x1D419:  # Bold capitals
+        if 0x1D400 <= code <= 0x1D419: 
             return chr(code - 0x1D400 + ord('A'))
-        elif 0x1D41A <= code <= 0x1D433:  # Bold lowercase
+        elif 0x1D41A <= code <= 0x1D433: 
             return chr(code - 0x1D41A + ord('a'))
         return char
     
@@ -84,9 +81,9 @@ class SMSTextCleaner:
         """
         char = match.group(0)
         code = ord(char)
-        if 0x1D434 <= code <= 0x1D44D:  # Italic capitals
+        if 0x1D434 <= code <= 0x1D44D:  
             return chr(code - 0x1D434 + ord('A'))
-        elif 0x1D44E <= code <= 0x1D467:  # Italic lowercase
+        elif 0x1D44E <= code <= 0x1D467: 
             return chr(code - 0x1D44E + ord('a'))
         return char
     
@@ -101,9 +98,9 @@ class SMSTextCleaner:
         """
         char = match.group(0)
         code = ord(char)
-        if 0x1D5A0 <= code <= 0x1D5B9:  # Sans capitals
+        if 0x1D5A0 <= code <= 0x1D5B9: 
             return chr(code - 0x1D5A0 + ord('A'))
-        elif 0x1D5BA <= code <= 0x1D5D3:  # Sans lowercase
+        elif 0x1D5BA <= code <= 0x1D5D3: 
             return chr(code - 0x1D5BA + ord('a'))
         return char
     
@@ -115,14 +112,10 @@ class SMSTextCleaner:
 
         Returns:
             str: processed text
-        """
-        # Remove leading/trailing whitespace
-        text = text.strip()
-        # Replace multiple spaces with single space
-        text = re.sub(r' +', ' ', text)
-        # Replace multiple newlines with single newline
-        text = re.sub(r'\n+', '\n', text)
-        # Replace tabs with spaces
+        """ 
+        text = text.strip() 
+        text = re.sub(r' +', ' ', text) 
+        text = re.sub(r'\n+', '\n', text) 
         text = text.replace('\t', ' ')
         return text
     
@@ -140,8 +133,7 @@ class SMSTextCleaner:
         return text
     
     def remove_emojis(self, text: str) -> str:
-        """Remove all emoji characters"""
-        # Emoji patterns
+        """Remove all emoji characters""" 
         emoji_pattern = re.compile(
             "["
             "\U0001F600-\U0001F64F"  # emoticons

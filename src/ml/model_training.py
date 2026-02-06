@@ -6,7 +6,11 @@ from typing import Any
 from datetime import datetime 
 from prefect import task, get_run_logger
 from prefect.cache_policies import NO_CACHE 
+
+from lightgbm.sklearn import LGBMClassifier
+from xgboost.sklearn import XGBClassifier
 from sklearn.linear_model import SGDClassifier 
+from sklearn.model_selection import RandomizedSearchCV
 from mlflow.exceptions import MlflowTracingException, RestException
 
 
@@ -86,7 +90,7 @@ class SGD(ModelBoneStructure):
             experiment_name (str): mlflow experiment name
             model_name (str): model name
         """
-        
+    
         super().__init__( 
             model_name=model_name,
             model=SGDClassifier(
