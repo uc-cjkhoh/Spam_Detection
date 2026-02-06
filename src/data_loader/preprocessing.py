@@ -343,8 +343,7 @@ class SMSTextCleaner:
     
     def extract_features(self, text: str) -> Dict:
         """Extract all features before cleaning (existing + new)"""
-        features = {
-            # EXISTING FEATURES
+        features = { 
             'emoji_count': self.keep_emojis_count(text),
             'has_phone': np.where(bool(re.search(r'0\d{9,10}|6\s*0\s*1', text)), 1, 0),
             'has_currency': np.where(bool(re.search(r'rm\s*\d+', text, re.IGNORECASE)), 1, 0),
@@ -353,9 +352,7 @@ class SMSTextCleaner:
             'digit_ratio': sum(1 for c in text if c.isdigit()) / max(len(text), 1),
             'special_char_ratio': sum(1 for c in text if not c.isalnum() and not c.isspace()) / max(len(text), 1),
             'length': len(text),
-            'newline_count': text.count('\n'),
-            
-            # NEW FEATURES
+            'newline_count': text.count('\n'), 
             'char_substitution_count': self.count_char_substitutions(text),
             'financial_keyword_count': self.count_keyword_category(text, self.financial_keywords),
             'action_keyword_count': self.count_keyword_category(text, self.action_keywords),
@@ -389,55 +386,49 @@ class SMSTextCleaner:
         """
         if not isinstance(text, str):
             return ""
-        
-        # Step 1: Remove excessive whitespace
+         
         text = self.remove_excessive_whitespace(text)
-        
-        # Step 2: Normalize unicode fancy characters
+         
         text = self.normalize_unicode_chars(text)
-        
-        # Step 3: Remove or keep emojis
+         
         if remove_emojis:
             text = self.remove_emojis(text)
-        
-        # Step 4: Normalize URLs
+         
         text = self.normalize_urls(text)
-        
-        # Step 5: Normalize numbers if requested
+         
         if normalize_numbers:
             text = self.normalize_phone_numbers(text)
             text = self.normalize_currency(text)
-        
-        # Step 6: Normalize obfuscated text
+         
         text = self.normalize_obfuscated_text(text)
-        
-        # Step 7: Remove special characters (keep basic punctuation)
+         
         text = self.remove_special_chars(text, keep_punctuation=True)
-        
-        # Step 8: Clean up whitespace again after transformations
+         
         text = self.remove_excessive_whitespace(text)
-        
-        # Step 9: Convert to lowercase if requested
+         
         if to_lowercase:
             text = self.convert_to_lowercase(text)
         
         return text
 
 
-@task(name="Normalize Sentence", cache_policy=NO_CACHE)
-def get_normalized_messages(df, target_column, extract_features: bool = True): 
-    df[target_column] = df[target_column].fillna('')
-     
+@task(name="Feature Engineering", cache_policy=NO_CACHE)
+def feature_engineering(messages: pd.Series) -> pd.DataFrame: 
     cleaner = SMSTextCleaner()
+    
+    messages = messages.fillna('') 
+    feature_dicts = messages.apply(cleaner.extract_features)
+    feature_df = pd.DataFrame(feature_dicts.tolist())
      
-    if extract_features: 
-        feature_dicts = df[target_column].apply(cleaner.extract_features)
-        feature_df = pd.DataFrame(feature_dicts.tolist())
-         
-        for col in feature_df.columns:
-            df[f'feature_{col}'] = feature_df[col]
-     
-    df[target_column] = df[target_column].apply(
+    return feature_df
+
+
+@task(name="Clean Text", cache_policy=NO_CACHE)
+def clean_text(messages: pd.Series) -> pd.Series:
+    cleaner = SMSTextCleaner()
+    
+    messages = messages.fillna('')    
+    messages = messages.apply(
         lambda x: cleaner.clean(
             x, 
             remove_emojis=True, 
@@ -446,4 +437,4 @@ def get_normalized_messages(df, target_column, extract_features: bool = True):
         )
     ) 
     
-    return df
+    return messages

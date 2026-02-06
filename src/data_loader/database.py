@@ -1,15 +1,17 @@
 import pandas as pd 
 
+from sqlalchemy.engine import URL
+from sqlalchemy.dialects.mysql import insert
 from sqlalchemy import create_engine, text, MetaData, Table, Column
 from sqlalchemy.dialects.mysql import BIGINT, DATETIME, SMALLINT, DOUBLE, VARCHAR
-from sqlalchemy.dialects.mysql import insert
+from sqlalchemy.exc import ArgumentError, OperationalError, StatementError, CompileError
 
-from prefect import task
+from prefect import task, get_run_logger
 from prefect.cache_policies import NO_CACHE 
 
 
 class Database:
-    def __init__(self, host: str, port: int, user: str, password: str):
+    def __init__(self, host: str, port: int, user: str, password: str, schema: str):
         """
         Initiate MySQL Connection
 
@@ -19,11 +21,33 @@ class Database:
             user (str): username
             password (str): password
         """
-        self.host = host
-        self.port = port
-        self.user = user
-        self.password = password
-        self.engine = create_engine("mysql+pymysql://unified:unified@10.168.51.196:3306/sms_spam_cd")
+        
+        logger = get_run_logger()
+         
+        self.schema = schema
+        
+        try:
+            connection_url = URL.create(
+                drivername='mysql+pymysql',
+                host=host,
+                port=port,
+                username=user,
+                password=password,
+                database=schema
+            )
+            
+            logger.info(f'Connecting to: {connection_url.render_as_string(hide_password=True)}')
+            self.engine = create_engine(connection_url)
+
+        except ArgumentError:
+            logger.error('Invalid SQLAlchemy configuration', exc_info=True)
+            raise
+        except OperationalError:
+            logger.error('Database connection error', exc_info=True)
+            raise
+        except (ValueError, TypeError) as e:
+            logger.error(f'Failed to connect to MySQL due to {e}', exc_info=True)
+            raise
   
   
     @task(name="Run SQL Statement", cache_policy=NO_CACHE)
@@ -34,8 +58,23 @@ class Database:
         Args:
             statement (str): statement to run
         """
-        with self.engine.begin() as conn:
-            conn.execute(text(statement))
+        
+        logger = get_run_logger()
+        
+        try:
+            logger.info(f'Executing statement: {statement}', exc_info=True)
+            with self.engine.begin() as conn:
+                conn.execute(text(statement))
+        
+        except StatementError as e:
+            logger.error(f'Invalid statement: {e}', exc_info=True)
+            raise
+        except CompileError as e:
+            logger.error(f'Compile error when trying: {e}', exc_info=True)
+            raise
+        except (ValueError, TypeError) as e:
+            logger.error(f'Failed to run statement due to {e}', exc_info=True)
+            raise
       
     
     @task(name="Retrieve Records From MySQL", cache_policy=NO_CACHE)  
@@ -49,13 +88,25 @@ class Database:
         Returns:
             pd.DataFrame
         """
-        with self.engine.connect() as conn:
-            result = conn.execute(text(query))
-            rows = result.fetchall()
-            columns = result.keys()
-            
-        return pd.DataFrame(rows, columns=columns)
-    
+        
+        logger = get_run_logger()
+        
+        try: 
+            with self.engine.connect() as conn:
+                data = pd.read_sql(text(query), conn) 
+                
+            return data
+
+        except StatementError as e:
+            logger.error(f'Invalid query: {e}', exc_info=True)
+            raise
+        except CompileError as e:
+            logger.error(f'Compile error when trying: {e}', exc_info=True)
+            raise
+        except (ValueError, TypeError) as e:
+            logger.error(f'Failed to run query due to {e}', exc_info=True)
+            raise
+        
     
     @task(name="Save to MySQL", cache_policy=NO_CACHE)
     def save_to_mysql(self, data: dict):
@@ -65,41 +116,59 @@ class Database:
         Args:
             data (dict): data to save
         """ 
-        metadata = MetaData()
-        target_table = Table(
-            "label_by_vectordb_2",
-            metadata,
-            Column('row_id', BIGINT, primary_key=True),
-            Column('id', BIGINT, nullable=False),
-            Column('datetime', DATETIME, nullable=True),
-            Column('spam_label', SMALLINT, nullable=True),
-            Column('confidence_score', DOUBLE, nullable=True),
-            Column('label_status', VARCHAR(20), nullable=True),
-            Column('model', VARCHAR(20), nullable=True),
-            Column('iter_involved', VARCHAR(10), nullable=True),
-            schema='sms_spam_cd'
-        )
         
-        metadata.create_all(self.engine)
+        logger = get_run_logger()
         
-        with self.engine.connect() as conn:
-            insert_statement = insert(target_table).values(data)
-        
-            on_duplicate_key_statement = insert_statement.on_duplicate_key_update(
-                spam_label=insert_statement.inserted.spam_label,
-                confidence_score=insert_statement.inserted.confidence_score,
-                label_status=insert_statement.inserted.label_status, 
-                model=insert_statement.inserted.model,
-                iter_involved=insert_statement.inserted.iter_involved
+        try:
+            metadata = MetaData()
+            target_table = Table(
+                "label_by_vectordb_2",
+                metadata,
+                Column('row_id', BIGINT, primary_key=True),
+                Column('id', BIGINT, nullable=False),
+                Column('datetime', DATETIME, nullable=True),
+                Column('spam_label', SMALLINT, nullable=True),
+                Column('confidence_score', DOUBLE, nullable=True),
+                Column('label_status', VARCHAR(20), nullable=True),
+                Column('model', VARCHAR(20), nullable=True),
+                Column('iter_involved', VARCHAR(10), nullable=True),
+                schema=self.schema
             )
             
-            conn.execute(on_duplicate_key_statement)
-            conn.commit() 
+            metadata.create_all(self.engine)
             
-    
+            with self.engine.connect() as conn:
+                try:
+                    insert_statement = insert(target_table).values(data) 
+                    on_duplicate_key_statement = insert_statement.on_duplicate_key_update(
+                        spam_label=insert_statement.inserted.spam_label,
+                        confidence_score=insert_statement.inserted.confidence_score,
+                        label_status=insert_statement.inserted.label_status, 
+                        model=insert_statement.inserted.model,
+                        iter_involved=insert_statement.inserted.iter_involved
+                    )
+                    
+                    conn.execute(on_duplicate_key_statement)
+                    conn.commit() 
+                
+                except OperationalError as e:
+                    conn.rollback()
+                    logger.error(f'Database connection issue: {e}', exc_info=True)
+                    raise  
+         
+        except ArgumentError as e:
+            logger.error(f'Invalid argument: {e}', exc_info=True)
+            raise
+        except OperationalError as e:
+            logger.error(f'Database unreachable or timeout: {e}', exc_info=True)
+            raise 
+        except (ValueError, TypeError) as e:
+            logger.error(f'Failed to save data due to {e}', exc_info=True)
+            raise
+        
+        
     @task(name="Disconnect MySQL", cache_policy=NO_CACHE)
     def close_connection(self):
-        """
-        Disconnect connected MySQL
-        """
+        """Disconnect connected MySQL"""
         self.engine.dispose()
+        

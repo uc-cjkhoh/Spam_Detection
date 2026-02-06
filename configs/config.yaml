@@ -1,3 +1,39 @@
+# general config
+mlflow_uri: 'http://10.168.49.12:5000'
+experiment_name: 'label_by_vectorstore'
+label_column: 'spam_label'
+target_column: 'payload'
+number_of_uncertain: 500
+threshold: 0.98
+
+
+# database
+database:
+  host: '10.168.51.196'
+  port: 3306
+  user: 'unified'
+  password: 'unified'
+  schema: 'sms_spam_cd'
+
+
+# embedding model
+embedding:
+  model_name: 'jinaai/jina-embeddings-v3'
+  batch_size: 8
+  normalize_embeddings: True
+  show_progress: True
+
+
+# ml model
+ml_model:
+  model_name: 'sgd_model'
+
+
+# vectorstore
+vectorstore:
+  directory: './data/vector'
+
+
 # initial data
 initial_data: 
   'select 
@@ -61,4 +97,3 @@ data:
       StratifiedData
     WHERE
       rn <= 100' 
-  target_column: 'payload'
