@@ -102,7 +102,7 @@ class VectorStore:
             n = self.faiss.index.ntotal
             
             labels = np.empty(n, dtype=int) 
-            payload = np.empty(n, dtype=str)
+            payload = np.empty(n, dtype=object)
             for doc in self.faiss.docstore._dict.values():
                 payload[doc.metadata['document_id']] = doc.page_content
                 labels[doc.metadata["document_id"]] = doc.metadata['label']

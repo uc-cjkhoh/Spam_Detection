@@ -71,7 +71,14 @@ def get_unique_pattern_ids(embeddings: np.ndarray) -> list[int]:
     cluster_id = hdb.fit_predict(embeddings)
     ids = np.arange(0, embeddings.shape[0], 1)
     
-    retent_df = pd.DataFrame({'ids': ids, 'cluster_id': cluster_id}) 
-    retent_ids = retent_df.groupby('cluster_id').head(5)['ids'].to_numpy(dtype=int)
+    retent_df = pd.DataFrame({'ids': ids, 'cluster_id': cluster_id})
+    
+    non_outlier_df = retent_df[retent_df.cluster_id != -1]
+    outlier_df = retent_df[retent_df.cluster_id == -1]
+    
+    unique_non_outlier_ids = non_outlier_df.groupby('cluster_id').head(5)['ids'].to_numpy(dtype=int)
+    unique_outlier_ids = outlier_df['ids'].to_numpy(dtype=int)
+    
+    retent_ids = np.hstack((unique_non_outlier_ids, unique_outlier_ids))
     
     return retent_ids

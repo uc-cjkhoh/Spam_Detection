@@ -93,15 +93,12 @@ class SGD(ModelBoneStructure):
     
         super().__init__( 
             model_name=model_name,
-            model=SGDClassifier(
-                loss='log_loss', 
-                class_weight='balanced'
-            )
+            model=LGBMClassifier()
         )
             
      
     @task(name='Train Model', cache_policy=NO_CACHE)
-    def fit(self, x: np.ndarray, y: np.ndarray) -> SGDClassifier:
+    def fit(self, x: np.ndarray, y: np.ndarray) -> LGBMClassifier:
         """Train model
 
         Args:
@@ -109,7 +106,7 @@ class SGD(ModelBoneStructure):
             y (np.ndarray): dependent feature
 
         Returns:
-            SGDClassifier: target model
+            LGBMClassifier: target model
         """
         
         logger = get_run_logger()

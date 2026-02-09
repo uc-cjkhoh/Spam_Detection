@@ -1,6 +1,6 @@
 # general config
 mlflow_uri: 'http://10.168.49.12:5000'
-experiment_name: 'embed_clean_msg'
+experiment_name: 'refactored_code_performance'
 label_column: 'spam_label'
 target_column: 'payload'
 number_of_uncertain: 500
@@ -26,7 +26,7 @@ embedding:
 
 # ml model
 ml_model:
-  model_name: 'sgd_model'
+  model_name: 'lightgbm_model'
 
 
 # vectorstore

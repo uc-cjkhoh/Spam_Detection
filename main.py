@@ -5,14 +5,14 @@ import pandas as pd
 
 from mlflow.exceptions import MlflowException
 
-from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import StandardScaler
 from prefect import flow, task, get_run_logger
 from prefect.cache_policies import NO_CACHE
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from src.config_folder.config_loader import get_config
 from src.data_loader.database import Database
-from src.data_loader.preprocessing import feature_engineering, clean_text
+from src.data_loader.preprocessing import feature_engineering
 from src.vector_database.vectorstore import VectorStore 
 from src.ml.model_training import SGD 
 from src.utils.util import create_require_files_and_directories, get_unique_pattern_ids, \
@@ -83,7 +83,6 @@ def setup_environment(config) -> tuple[Database, VectorStore, HuggingFaceEmbeddi
         else:
             logger.info('Get initial data') 
             initial_data = database.get_records(config.initial_data)
-            initial_data[config.target_column] = clean_text(initial_data[config.target_column])
             
             logger.info('Initialize vectorstore with initial data')
             vectorstore.load_with_dataframe(initial_data)
@@ -102,7 +101,7 @@ def setup_environment(config) -> tuple[Database, VectorStore, HuggingFaceEmbeddi
         
 
 @task(name='Load Training Data', cache_policy=NO_CACHE)
-def load_training_data(config, database, vectorstore, embedding_model) -> tuple[np.ndarray, np.ndarray]:
+def load_training_data(config, database, vectorstore, embedding_model, scaler) -> tuple[np.ndarray, np.ndarray]:
     """Load training data
 
     Args:
@@ -118,16 +117,20 @@ def load_training_data(config, database, vectorstore, embedding_model) -> tuple[
     logger = get_run_logger()
     
     try:
-        scaler = RobustScaler()
-        
         logger.info('Retrieve initial data from vectorstore')
         initial_payloads, initial_embeddings, initial_labels = vectorstore.return_pagecontent_embeddings_and_labels()
         
         logger.info('Perform feature engineering')
         initial_features = feature_engineering(initial_payloads) 
         
+        stds = initial_features.std(axis=0)
+        non_variance_col_ids = stds > 0
+        initial_features = initial_features.loc[:, non_variance_col_ids]
+        
+        initial_features = scaler.fit_transform(initial_features)
+        
         logger.info('Stack embeddings and features horizontally')
-        combined_initial_embeddings = np.hstack((initial_features, initial_embeddings))
+        combined_initial_embeddings = np.hstack((initial_features, initial_embeddings)) 
         
         x_train = combined_initial_embeddings
         y_train = initial_labels
@@ -141,6 +144,9 @@ def load_training_data(config, database, vectorstore, embedding_model) -> tuple[
             
             logger.info('Perform feature engineering')
             prelabeled_features = feature_engineering(prelabeled_payloads) 
+            prelabeled_features = prelabeled_features.loc[:, non_variance_col_ids]
+            
+            prelabeled_features = scaler.transform(prelabeled_features)
             
             logger.info('Perform sentence embeddings')
             prelabeled_embeddings = embedding_model.embed_documents(prelabeled_payloads)
@@ -150,15 +156,17 @@ def load_training_data(config, database, vectorstore, embedding_model) -> tuple[
             
             logger.info('Stack initial data and labeled data vertically')
             x_train = np.vstack((combined_initial_embeddings, combined_prelabeled_embeddings))
-            y_train = np.vstack((initial_labels, prelabeled_labels))
+            y_train = np.concatenate((np.ravel(initial_labels), np.ravel(prelabeled_labels))).astype(int)
         
-        logger.info('Standardizing final embeddings')
-        x_train = scaler.fit_transform(x_train)
+        retent_ids = get_unique_pattern_ids(x_train)
+        x_train = x_train[retent_ids]
+        y_train = y_train[retent_ids]
+        logger.info(f'Reduce number of payload to {len(x_train)}')
         
         logger.info('Perform oversampling')
         x_train, y_train = oversampling(x_train, y_train) 
         
-        return x_train, y_train
+        return x_train, y_train, non_variance_col_ids
  
     except KeyError as e:
         logger.error(f'Missing config key: {e}', exc_info=True)
@@ -175,7 +183,7 @@ def load_training_data(config, database, vectorstore, embedding_model) -> tuple[
 
 
 @task(name='Load Testing Data', cache_policy=NO_CACHE)
-def load_testing_data(config, database, embedding_model) -> tuple[np.ndarray, np.ndarray]:
+def load_testing_data(config, database, embedding_model, scaler, zero_variance_column_ids) -> tuple[np.ndarray, np.ndarray]:
     """Load testing data
 
     Args:
@@ -190,18 +198,16 @@ def load_testing_data(config, database, embedding_model) -> tuple[np.ndarray, np
     logger = get_run_logger()
     
     try:
-        scaler = RobustScaler()
-        
         test_data = database.get_records(config.test_data) 
         test_payloads = test_data[config.target_column]
         test_labels = test_data[config.label_column]
         
-        test_features = feature_engineering(test_payloads)  
-        clean_text_payloads = clean_text(test_payloads)
+        test_features = feature_engineering(test_payloads.copy())
+        test_features = test_features.loc[:, zero_variance_column_ids]
+        test_features = scaler.transform(test_features)
         
-        test_embeddings = embedding_model.embed_documents(clean_text_payloads)
+        test_embeddings = embedding_model.embed_documents(test_payloads)
         combined_test_embeddings = np.hstack((test_features, test_embeddings))
-        combined_test_embeddings = scaler.fit_transform(combined_test_embeddings)
         
         return combined_test_embeddings, test_labels
     
@@ -216,6 +222,7 @@ def load_testing_data(config, database, embedding_model) -> tuple[np.ndarray, np
 @flow(name='Active Learning Pipeline')
 def main():    
     logger = get_run_logger()
+    scaler = StandardScaler()
     
     logger.info('Retrieve configuration')
     config = get_config() 
@@ -224,10 +231,10 @@ def main():
     database, vectorstore, embedding_model, model = setup_environment(config)
     
     logger.info('Load training data')
-    x_train, y_train = load_training_data(config, database, vectorstore, embedding_model)
+    x_train, y_train, zero_variance_column_ids = load_training_data(config, database, vectorstore, embedding_model, scaler)
     
     logger.info('Load testing data') 
-    x_test, y_test = load_testing_data(config, database, embedding_model)
+    x_test, y_test = load_testing_data(config, database, embedding_model, scaler, zero_variance_column_ids)
 
     logger.info('Train model')
     model.fit(x_train, y_train)
