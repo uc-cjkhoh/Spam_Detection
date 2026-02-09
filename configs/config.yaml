@@ -1,4 +1,3 @@
-# general config
 mlflow_uri: 'http://10.168.49.12:5000'
 experiment_name: 'refactored_code_performance'
 label_column: 'spam_label'
@@ -6,8 +5,7 @@ target_column: 'payload'
 number_of_uncertain: 500
 threshold: 0.98
 
-
-# database
+ 
 database:
   host: '10.168.51.196'
   port: 3306
@@ -15,26 +13,22 @@ database:
   password: 'unified'
   schema: 'sms_spam_cd'
 
-
-# embedding model
+ 
 embedding:
   model_name: 'jinaai/jina-embeddings-v3'
   batch_size: 8
   normalize_embeddings: True
   show_progress: True
 
-
-# ml model
+ 
 ml_model:
   model_name: 'lightgbm_model'
 
-
-# vectorstore
+ 
 vectorstore:
   directory: './data/vector'
 
-
-# initial data
+ 
 initial_data: 
   'select 
     payload,
@@ -45,8 +39,7 @@ initial_data:
     day(datetime) != 22
   '
 
-
-# test data
+ 
 test_data:
   'select 
     payload,
@@ -57,8 +50,7 @@ test_data:
     day(datetime) = 22 
   '
 
-
-# get human labeled data in mysql
+ 
 labeled_data: 
   "select 
     data.payload,
@@ -70,30 +62,28 @@ labeled_data:
     mr.label_status in (-1)
   "
  
-
-# stratified sampling
-data: 
-  query: 
-    'WITH StratifiedData AS (
-      SELECT
-        id,
-        current_datetime,
-        payload, 
-        ROW_NUMBER() OVER (
-            PARTITION BY day(current_datetime), HOUR(current_datetime)
-            ORDER BY RAND()
-        ) as rn
-      FROM
-          sms_spam_cd.data_tdr_spam_filter 
-      where
-        DAY(current_datetime) != 22 
-        and HOUR(current_datetime) between 10 and 13
-    )
+ 
+stratified_sampling: 
+  'WITH StratifiedData AS (
     SELECT
       id,
       current_datetime,
-      payload
+      payload, 
+      ROW_NUMBER() OVER (
+          PARTITION BY day(current_datetime), HOUR(current_datetime)
+          ORDER BY RAND()
+      ) as rn
     FROM
-      StratifiedData
-    WHERE
-      rn <= 100' 
+        sms_spam_cd.data_tdr_spam_filter 
+    where
+      DAY(current_datetime) != 22 
+      and HOUR(current_datetime) between 10 and 13
+  )
+  SELECT
+    id,
+    current_datetime,
+    payload
+  FROM
+    StratifiedData
+  WHERE
+    rn <= 100' 

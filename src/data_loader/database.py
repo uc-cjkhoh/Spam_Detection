@@ -122,7 +122,7 @@ class Database:
         try:
             metadata = MetaData()
             target_table = Table(
-                "label_by_vectordb_2",
+                "label_by_vectordb",
                 metadata,
                 Column('row_id', BIGINT, primary_key=True),
                 Column('id', BIGINT, nullable=False),

@@ -38,7 +38,7 @@ def stratified_sampling(config, db) -> tuple[pd.Series, pd.Series, pd.DataFrame]
         tuple[pd.Series, pd.Series, pd.DataFrame]: id, datetime, payload from MySQL 
     """
     
-    data = db.get_records(config.data.query)
+    data = db.get_records(config.stratified_sampling)
     return data['id'], data['current_datetime'], data['payload']
   
 

@@ -9,8 +9,7 @@ from prefect.cache_policies import NO_CACHE
 
 from lightgbm.sklearn import LGBMClassifier
 from xgboost.sklearn import XGBClassifier
-from sklearn.linear_model import SGDClassifier 
-from sklearn.model_selection import RandomizedSearchCV
+from sklearn.linear_model import SGDClassifier
 from mlflow.exceptions import MlflowTracingException, RestException
 
 

@@ -302,7 +302,7 @@ def main():
     #     )
         
     #     # update last_batch column
-    #     database.run_statement(f'update sms_spam_cd.label_by_vectordb_2 set iter_involved = case when label_status in (-1, 1) then concat(coalesce(iter_involved, ""), "1") else concat(coalesce(iter_involved, ""), "0") end')
+    #     database.run_statement(f'update sms_spam_cd.label_by_vectordb set iter_involved = case when label_status in (-1, 1) then concat(coalesce(iter_involved, ""), "1") else concat(coalesce(iter_involved, ""), "0") end')
          
     database.close_connection() 
 
