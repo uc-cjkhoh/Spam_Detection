@@ -40,4 +40,3 @@ class ProjectConfig(BaseModel):
     embedding: EmbeddingConfig
     ml_model: MLModelConfig
     vectorstore: VectorstoreConfig
-    

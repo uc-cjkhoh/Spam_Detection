@@ -2,37 +2,35 @@ import mlflow
 import numpy as np
 import pandas as pd
 
-from typing import Any
-from datetime import datetime 
+from datetime import datetime  
+from lightgbm.sklearn import LGBMClassifier 
+from mlflow.exceptions import MlflowTracingException, RestException
+
 from prefect import task, get_run_logger
 from prefect.cache_policies import NO_CACHE 
 
-from lightgbm.sklearn import LGBMClassifier
-from xgboost.sklearn import XGBClassifier
-from sklearn.linear_model import SGDClassifier
-from mlflow.exceptions import MlflowTracingException, RestException
+from data_validation.ml_validation.validate_model_training import ModelBoneStructureConfig, \
+    EvaluateInput, LGBMConfig, TrainInput, PredictInput, PredictProbaInput
 
 
 class ModelBoneStructure():
-    def __init__(self, model_name: str, model: Any): 
+    def __init__(self, model_config: ModelBoneStructureConfig): 
         """Define bone structure for any model
 
         Args:
-            experiment_name (str): mlflow experiment name
-            model_name (str): model name
-            model (Any): any model
+            model_config (ModelBoneStructureConfig): refer to ModelBoneStructureConfig in validate_model_training.py
         """
         
-        self.model_name = model_name  
-        self.model = model
+        self.model_name = model_config.model_name  
+        self.model = model_config.model
         
         
     @task(name='Save Model', cache_policy=NO_CACHE)
-    def evaluate(self, x_test: np.ndarray, y_test: np.ndarray):
+    def evaluate(self, evaluate_input: EvaluateInput):
         """Save / Log Model
 
         Args:
-            input_sample (np.ndarray): input sample saved to mlflow (for reference only)
+            evaluate_input (EvaluateInput): refer to EvaluateInput in validate_model_training.py
         """
         
         logger = get_run_logger()
@@ -42,11 +40,11 @@ class ModelBoneStructure():
                 mlflow.log_param('model_parameters', self.model.get_params())
                 
                 x_df = pd.DataFrame(
-                    x_test,
-                    columns=[f"f{i}" for i in range(x_test.shape[1])]
+                    evaluate_input.x_test,
+                    columns=[f"f{i}" for i in range(evaluate_input.x_test.shape[1])]
                 )
                 
-                y_s = pd.Series(y_test, name="y_test")
+                y_s = pd.Series(evaluate_input.y_test, name="y_test")
 
                 signature = mlflow.models.signature.infer_signature(
                     x_df, self.model.predict(x_df)
@@ -81,28 +79,26 @@ class ModelBoneStructure():
             raise
         
         
-class SGD(ModelBoneStructure):
-    def __init__(self, model_name: str):
-        """Build SGDClassifier class that inherit from ModelBoneStructure
+class LGBM(ModelBoneStructure):
+    def __init__(self, lgbm_config: LGBMConfig):
+        """Build LGBMClassifier class that inherit from ModelBoneStructure
 
         Args:
-            experiment_name (str): mlflow experiment name
-            model_name (str): model name
+            lgbm_config (LGBMConfig): refer to LGBMConfig in validate_model_training.py
         """
     
         super().__init__( 
-            model_name=model_name,
+            model_name=lgbm_config.model_name,
             model=LGBMClassifier()
         )
             
      
     @task(name='Train Model', cache_policy=NO_CACHE)
-    def fit(self, x: np.ndarray, y: np.ndarray) -> LGBMClassifier:
+    def fit(self, train_input: TrainInput) -> LGBMClassifier:
         """Train model
 
         Args:
-            x (np.ndarray): independent features
-            y (np.ndarray): dependent feature
+            train_input (TrainInput): refer to TrainInput in validate_model_training.py
 
         Returns:
             LGBMClassifier: target model
@@ -112,7 +108,7 @@ class SGD(ModelBoneStructure):
         
         try:
             logger.info(f'Training {type(self.model).__name__}-{self.model_name}')
-            self.model.fit(x, y)
+            self.model.fit(train_input.x, train_input.y)
         
         except (ValueError, TypeError) as e:
             logger.error(f'Training failed due to {e}', exc_info=True)
@@ -120,11 +116,11 @@ class SGD(ModelBoneStructure):
         
       
     @task(name='Perform Classification', cache_policy=NO_CACHE)
-    def predict(self, x: np.ndarray) -> np.ndarray:
+    def predict(self, predict_input: PredictInput) -> np.ndarray:
         """Perform prediction / classification
 
         Args:
-            x (np.ndarray): independent features
+            predict_input (PredictInput): refer to PredictInput in validate_model_training.py
 
         Returns:
             np.ndarray: result
@@ -134,7 +130,7 @@ class SGD(ModelBoneStructure):
         
         try:
             logger.info(f'Classify data with {type(self.model).__name__}-{self.model_name}')
-            return self.model.predict(x)
+            return self.model.predict(predict_input.x)
     
         except (ValueError, TypeError) as e:
             logger.error(f'Classification failed due to {e}', exc_info=True)
@@ -142,11 +138,11 @@ class SGD(ModelBoneStructure):
     
     
     @task(name='Get Confidence Score', cache_policy=NO_CACHE)
-    def predict_proba(self, x: np.ndarray) -> np.ndarray:
+    def predict_proba(self, predict_proba_input: PredictProbaInput) -> np.ndarray:
         """Retrieve prediction or classification probability
 
         Args:
-            x (np.ndarray): independent features
+            predict_proba_input (PredictProbaInput): refer to PredictProbaInput in validate_model_training.py
 
         Returns:
             np.ndarray: probability list
@@ -156,7 +152,7 @@ class SGD(ModelBoneStructure):
         
         try:
             logger.info(f'Retrieving confidence score of {type(self.model).__name__}-{self.model_name}')
-            return self.model.predict_proba(x).max(axis=1)
+            return self.model.predict_proba(predict_proba_input.x).max(axis=1)
         
         except (ValueError, TypeError) as e:
             logger.error(f'Failed to calculate prediction probability due to {e}', exc_info=True)

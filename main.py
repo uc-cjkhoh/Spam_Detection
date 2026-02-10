@@ -1,30 +1,30 @@
 import os
 import mlflow
 import numpy as np
-import pandas as pd 
 
 from mlflow.exceptions import MlflowException
-
 from sklearn.preprocessing import StandardScaler
-from prefect import flow, task, get_run_logger
-from prefect.cache_policies import NO_CACHE
 from langchain_huggingface import HuggingFaceEmbeddings
 
-from src.config_folder.config_loader import get_config
+from data_validation.configs_validation.validate_config_loader import ProjectConfig
+
+from prefect import flow, task, get_run_logger
+from prefect.cache_policies import NO_CACHE
+
+from src.ml.model_training import LGBM 
 from src.data_loader.database import Database
-from src.data_loader.preprocessing import feature_engineering
 from src.vector_database.vectorstore import VectorStore 
-from src.ml.model_training import SGD 
-from src.utils.util import create_require_files_and_directories, get_unique_pattern_ids, \
-    stratified_sampling, oversampling
+from src.config_folder.config_loader import get_config
+from src.data_loader.preprocessing import feature_engineering
+from src.utils.util import create_require_files_and_directories, get_unique_pattern_ids, oversampling
   
  
 @task(name='Setup Environment', cache_policy=NO_CACHE)
-def setup_environment(config) -> tuple[Database, VectorStore, HuggingFaceEmbeddings, SGD]:
+def setup_environment(config: ProjectConfig) -> tuple[Database, VectorStore, HuggingFaceEmbeddings, LGBM]:
     """Setup environment by create core components
 
     Args:
-        config (dict): loaded configuration file (config.yaml)
+        config (ProjectConfig): loaded configuration file (config.yaml)
         
     Raises:
         KeyError: when accessing unknown configuration key
@@ -33,7 +33,7 @@ def setup_environment(config) -> tuple[Database, VectorStore, HuggingFaceEmbeddi
         MLFlowException: any unexpected exception happened when connect to mlflow
 
     Returns:
-        tuple[Database, VectorStore, HuggingFaceEmbeddings, SGD]: all core components
+        tuple[Database, VectorStore, HuggingFaceEmbeddings, LGBM]: all core components
     """
     
     logger = get_run_logger()
@@ -57,8 +57,8 @@ def setup_environment(config) -> tuple[Database, VectorStore, HuggingFaceEmbeddi
             show_progress=config.embedding.show_progress
         )
         
-        logger.info('Create SGD model')
-        model = SGD(model_name=config.ml_model.model_name) 
+        logger.info('Create LGBM model')
+        model = LGBM(model_name=config.ml_model.model_name) 
         
         
         logger.info('Connect to MySQL')
@@ -101,14 +101,16 @@ def setup_environment(config) -> tuple[Database, VectorStore, HuggingFaceEmbeddi
         
 
 @task(name='Load Training Data', cache_policy=NO_CACHE)
-def load_training_data(config, database, vectorstore, embedding_model, scaler) -> tuple[np.ndarray, np.ndarray]:
+def load_training_data(config: ProjectConfig, database: Database, vectorstore: VectorStore, 
+                       embedding_model: HuggingFaceEmbeddings, scaler: StandardScaler) -> tuple[np.ndarray, np.ndarray]:
     """Load training data
 
     Args:
-        config (dict): configuration in config.yaml
+        config (ProjectConfig): configuration in config.yaml
         database (Database): MySQL database connection
         vectorstore (VectorStore): vectorstore entity
         embedding_model (HuggingFaceEmbeddings): embedding model
+        scaler (StandardScaler): z-score standardization
 
     Returns:
         tuple[np.ndarray, np.ndarray]: x_train, y_train
@@ -126,7 +128,6 @@ def load_training_data(config, database, vectorstore, embedding_model, scaler) -
         stds = initial_features.std(axis=0)
         non_variance_col_ids = stds > 0
         initial_features = initial_features.loc[:, non_variance_col_ids]
-        
         initial_features = scaler.fit_transform(initial_features)
         
         logger.info('Stack embeddings and features horizontally')
@@ -145,7 +146,6 @@ def load_training_data(config, database, vectorstore, embedding_model, scaler) -
             logger.info('Perform feature engineering')
             prelabeled_features = feature_engineering(prelabeled_payloads) 
             prelabeled_features = prelabeled_features.loc[:, non_variance_col_ids]
-            
             prelabeled_features = scaler.transform(prelabeled_features)
             
             logger.info('Perform sentence embeddings')
@@ -187,7 +187,7 @@ def load_testing_data(config, database, embedding_model, scaler, zero_variance_c
     """Load testing data
 
     Args:
-        config (dict): configuration from config.yaml
+        config (ProjectConfig): configuration from config.yaml
         database (Database): MySQL database connection
         embedding_model (HuggingFaceEmbeddings): embedding_model
 
@@ -241,69 +241,7 @@ def main():
 
     logger.info('Evaluate model')
     model.evaluate(x_test, y_test)
-    
-    # for i in range(5):
-    #     # stratified sampling
-    #     new_batch_data_id, new_batch_data_dt, new_batch_data_msg = stratified_sampling(config, database)
-
-    #     # preprocess data
-    #     scaled_embeddings = preprocess_data(embedding_model, new_batch_data_msg.copy(), target_column=config.target_column)
-        
-    #     # # reduce duplicate pattern
-    #     # unique_pattern_id = get_unique_pattern_ids(scaled_embeddings)
-    #     # scaled_embeddings = scaled_embeddings[unique_pattern_id]
-        
-    #     # get classification and confidence score
-    #     result = model.predict(scaled_embeddings)
-    #     confidence_score = model.predict_proba(scaled_embeddings)
-        
-    #     # get high confidence and uncertain data indexes
-    #     high_conf_ids = np.where(confidence_score >= args.threshold)[0]
-    #     uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), args.number_of_uncertain)[:args.number_of_uncertain]
-        
-    #     # create new training data (initial data + high confidence data)
-    #     high_conf_embeddings = scaled_embeddings[high_conf_ids]
-    #     high_conf_labels = result[high_conf_ids].squeeze()
-        
-    #     # label based on vectorstore
-    #     uncertain_embeddings = scaled_embeddings[uncertain_ids]
-    #     labels_status_by_vectordb, labels_by_vectordb = vectorstore.label_uncertains(new_batch_data_msg.iloc[uncertain_ids].iloc[:, 0].to_list())
-        
-    #     # configure label status (-1 = need human to label)
-    #     label_status = np.zeros(confidence_score.shape)
-    #     label_status[high_conf_ids] = 1
-    #     label_status[uncertain_ids] = labels_status_by_vectordb
-        
-    #     # replace teacher model's uncertain result with labels made by vectorstore
-    #     result[uncertain_ids] = labels_by_vectordb
-        
-    #     # combine data
-    #     x_train, y_train = np.vstack((x_train, high_conf_embeddings, uncertain_embeddings)), np.hstack((y_train, high_conf_labels, labels_by_vectordb))
-        
-    #     # oversampling it 
-    #     x_train, y_train = oversampling(x_train, y_train)
-        
-    #     # train model model
-    #     model.fit(x_train, y_train.reshape(-1, 1))
-
-    #     # evaluate and save model model
-    #     model.evaluate(x_test, y_test)
-
-    #     # save result to mysql
-    #     database.save_to_mysql(
-    #         pd.DataFrame({
-    #             'id': new_batch_data_id,
-    #             'datetime': new_batch_data_dt,
-    #             'spam_label': result,
-    #             'confidence_score': confidence_score,
-    #             'label_status': label_status,
-    #             'model': type(model).__name__
-    #         }).to_dict(orient='records')
-    #     )
-        
-    #     # update last_batch column
-    #     database.run_statement(f'update sms_spam_cd.label_by_vectordb set iter_involved = case when label_status in (-1, 1) then concat(coalesce(iter_involved, ""), "1") else concat(coalesce(iter_involved, ""), "0") end')
-         
+     
     database.close_connection() 
 
 

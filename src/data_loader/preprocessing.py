@@ -1,16 +1,18 @@
 import re
 import pandas as pd
 import numpy as np
-
-from datetime import datetime
+ 
 from typing import List, Dict
 from prefect import task
 from prefect.cache_policies import NO_CACHE
+
+from data_validation.data_loader_validation.validate_preprocessing import FeatureEngineering, CleanText
 
 
 class SMSTextCleaner:
     def __init__(self): 
         """ Define character to convert """
+        
         self.char_replacements = {
             '0': 'o',
             '1': 'i',
@@ -406,10 +408,19 @@ class SMSTextCleaner:
 
 
 @task(name="Feature Engineering", cache_policy=NO_CACHE)
-def feature_engineering(messages: pd.Series) -> pd.DataFrame: 
+def feature_engineering(fe_config: FeatureEngineering) -> pd.DataFrame:
+    """Feature engineering
+    
+        Args:
+            fe_config (FeatureEngineering): pydantic validation, refer to validate_preprocessing.FeatureEngineering
+        
+        Returns:
+            pd.DataFrame: extracted features
+    """
+    
     cleaner = SMSTextCleaner()
     
-    messages = messages.fillna('') 
+    messages = fe_config.messages.fillna('') 
     feature_dicts = messages.apply(cleaner.extract_features)
     feature_df = pd.DataFrame(feature_dicts.tolist())
     
@@ -417,10 +428,19 @@ def feature_engineering(messages: pd.Series) -> pd.DataFrame:
 
 
 @task(name="Clean Text", cache_policy=NO_CACHE)
-def clean_text(messages: pd.Series) -> pd.Series:
+def clean_text(ct_config: CleanText) -> pd.Series:
+    """Clean Text
+
+        Args:
+            ct_config (CleanText): pydantic validation, refer to validate_preprocessing.CleanText
+            
+        Returns:
+            pd.Series: cleaned payloads
+    """
+
     cleaner = SMSTextCleaner()
     
-    messages = messages.fillna('')    
+    messages = ct_config.messages.fillna('')    
     messages = messages.apply(
         lambda x: cleaner.clean(
             x, 

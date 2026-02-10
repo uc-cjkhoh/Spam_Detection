@@ -5,35 +5,34 @@ from sqlalchemy.dialects.mysql import insert
 from sqlalchemy import create_engine, text, MetaData, Table, Column
 from sqlalchemy.dialects.mysql import BIGINT, DATETIME, SMALLINT, DOUBLE, VARCHAR
 from sqlalchemy.exc import ArgumentError, OperationalError, StatementError, CompileError
+ 
+from data_validation.data_loader_validation.validate_database import MySQLConfig, RunStatement, GetRecords, SaveToMySQL
 
 from prefect import task, get_run_logger
 from prefect.cache_policies import NO_CACHE 
 
 
 class Database:
-    def __init__(self, host: str, port: int, user: str, password: str, schema: str):
+    def __init__(self, db_config: MySQLConfig):
         """
         Initiate MySQL Connection
 
         Args:
-            host (str): host name
-            port (int): port number
-            user (str): username
-            password (str): password
+            db_config: DatabaseConfig
         """
         
         logger = get_run_logger()
          
-        self.schema = schema
+        self.schema = db_config.table_schema
         
         try:
             connection_url = URL.create(
                 drivername='mysql+pymysql',
-                host=host,
-                port=port,
-                username=user,
-                password=password,
-                database=schema
+                host=db_config.host,
+                port=db_config.port,
+                username=db_config.user,
+                password=db_config.password,
+                database=db_config.table_schema
             )
             
             logger.info(f'Connecting to: {connection_url.render_as_string(hide_password=True)}')
@@ -51,20 +50,20 @@ class Database:
   
   
     @task(name="Run SQL Statement", cache_policy=NO_CACHE)
-    def run_statement(self, statement: str):
+    def run_statement(self, run_statement: RunStatement):
         """
         Run SQL statement like DDL, DML
 
         Args:
-            statement (str): statement to run
+            run_statement (RunStatement): statement to run
         """
         
         logger = get_run_logger()
         
         try:
-            logger.info(f'Executing statement: {statement}', exc_info=True)
+            logger.info(f'Executing statement: {run_statement.statement}', exc_info=True)
             with self.engine.begin() as conn:
-                conn.execute(text(statement))
+                conn.execute(text(run_statement.statement))
         
         except StatementError as e:
             logger.error(f'Invalid statement: {e}', exc_info=True)
@@ -78,12 +77,12 @@ class Database:
       
     
     @task(name="Retrieve Records From MySQL", cache_policy=NO_CACHE)  
-    def get_records(self, query: str) -> pd.DataFrame:
+    def get_records(self, get_records: GetRecords) -> pd.DataFrame:
         """
         Retrieve data from MySQL
 
         Args:
-            query (str): query to run
+            get_records (GetRecords): query to run
 
         Returns:
             pd.DataFrame
@@ -93,7 +92,7 @@ class Database:
         
         try: 
             with self.engine.connect() as conn:
-                data = pd.read_sql(text(query), conn) 
+                data = pd.read_sql(text(get_records.query), conn) 
                 
             return data
 
@@ -109,12 +108,12 @@ class Database:
         
     
     @task(name="Save to MySQL", cache_policy=NO_CACHE)
-    def save_to_mysql(self, data: dict):
+    def save_to_mysql(self, save_to_mysql: SaveToMySQL):
         """
         Save data to MySQL
 
         Args:
-            data (dict): data to save
+            save_to_mysql (SaveToMySQL): data to save
         """ 
         
         logger = get_run_logger()
@@ -139,7 +138,7 @@ class Database:
             
             with self.engine.connect() as conn:
                 try:
-                    insert_statement = insert(target_table).values(data) 
+                    insert_statement = insert(target_table).values(save_to_mysql.data) 
                     on_duplicate_key_statement = insert_statement.on_duplicate_key_update(
                         spam_label=insert_statement.inserted.spam_label,
                         confidence_score=insert_statement.inserted.confidence_score,
