@@ -6,8 +6,6 @@ from mlflow.exceptions import MlflowException
 from sklearn.preprocessing import StandardScaler
 from langchain_huggingface import HuggingFaceEmbeddings
 
-from data_validation.configs_validation.validate_config_loader import ProjectConfig
-
 from prefect import flow, task, get_run_logger
 from prefect.cache_policies import NO_CACHE
 
@@ -18,6 +16,10 @@ from src.config_folder.config_loader import get_config
 from src.data_loader.preprocessing import feature_engineering
 from src.utils.util import create_require_files_and_directories, get_unique_pattern_ids, oversampling
   
+from data_validation.configs_validation.validate_config_loader import ProjectConfig
+from data_validation.ml_validation.validate_model_training import LGBMConfig
+from data_validation.vectorstore_validation.validate_vectorstore import VectorstoreConfig
+
  
 @task(name='Setup Environment', cache_policy=NO_CACHE)
 def setup_environment(config: ProjectConfig) -> tuple[Database, VectorStore, HuggingFaceEmbeddings, LGBM]:
@@ -58,22 +60,24 @@ def setup_environment(config: ProjectConfig) -> tuple[Database, VectorStore, Hug
         )
         
         logger.info('Create LGBM model')
-        model = LGBM(model_name=config.ml_model.model_name) 
+        model = LGBM(LGBMConfig(model_name=config.ml_model.model_name)) 
         
         
         logger.info('Connect to MySQL')
-        database = Database(
+        database = Database( 
             host=config.database.host, 
             port=config.database.port, 
-            user=config.database.user, 
+            username=config.database.user, 
             password=config.database.password,
-            schema=config.database.table_schema
+            table_schema=config.database.table_schema 
         )
             
         logger.info('Create vectorstore')
         vectorstore = VectorStore(
-            directory=config.vectorstore.directory, 
-            filename=f'sms_embeddings_{str.lower(config.experiment_name)}',
+            vectorstore_config=VectorstoreConfig(
+                directory=config.vectorstore.directory, 
+                filename=f'sms_embeddings_{str.lower(config.experiment_name)}'
+            ),
             embedding=embedding_model
         )
         

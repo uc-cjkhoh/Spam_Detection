@@ -9,8 +9,7 @@ from mlflow.exceptions import MlflowTracingException, RestException
 from prefect import task, get_run_logger
 from prefect.cache_policies import NO_CACHE 
 
-from data_validation.ml_validation.validate_model_training import ModelBoneStructureConfig, \
-    EvaluateInput, LGBMConfig, TrainInput, PredictInput, PredictProbaInput
+from data_validation.ml_validation.validate_model_training import ModelBoneStructureConfig
 
 
 class ModelBoneStructure():
@@ -26,12 +25,18 @@ class ModelBoneStructure():
         
         
     @task(name='Save Model', cache_policy=NO_CACHE)
-    def evaluate(self, evaluate_input: EvaluateInput):
+    def evaluate(self, x_test: np.ndarray, y_test: np.ndarray):
         """Save / Log Model
 
         Args:
-            evaluate_input (EvaluateInput): refer to EvaluateInput in validate_model_training.py
+            x_test (np.ndarray): independent input
+            y_test (np.ndarray): dependent input
         """
+        
+        if not isinstance(x_test, np.ndarray):
+            raise TypeError('x_test need to be in numpy ndarray type')
+        elif not isinstance(y_test, np.ndarray):
+            raise TypeError('y_test need to be in numpy ndarray type')
         
         logger = get_run_logger()
         
@@ -40,11 +45,11 @@ class ModelBoneStructure():
                 mlflow.log_param('model_parameters', self.model.get_params())
                 
                 x_df = pd.DataFrame(
-                    evaluate_input.x_test,
-                    columns=[f"f{i}" for i in range(evaluate_input.x_test.shape[1])]
+                    x_test,
+                    columns=[f"f{i}" for i in range(x_test.shape[1])]
                 )
                 
-                y_s = pd.Series(evaluate_input.y_test, name="y_test")
+                y_s = pd.Series(y_test, name="y_test")
 
                 signature = mlflow.models.signature.infer_signature(
                     x_df, self.model.predict(x_df)
@@ -74,85 +79,90 @@ class ModelBoneStructure():
         except RestException as e:
             logger.error(f'Connection failure: {e}', exc_info=True)
             raise
-        except (ValueError, TypeError) as e:
-            logger.error(f'Model evaluation / save failed due to {e}', exc_info=True)
-            raise
         
         
 class LGBM(ModelBoneStructure):
-    def __init__(self, lgbm_config: LGBMConfig):
+    def __init__(self, model_name: str):
         """Build LGBMClassifier class that inherit from ModelBoneStructure
 
         Args:
-            lgbm_config (LGBMConfig): refer to LGBMConfig in validate_model_training.py
+            model_name (str): model name
         """
+        
+        if not isinstance(model_name, str):
+            raise TypeError('Model name need to be string type')
     
         super().__init__( 
-            model_name=lgbm_config.model_name,
-            model=LGBMClassifier()
+            model_config=ModelBoneStructureConfig( 
+                model_name=model_name,
+                model=LGBMClassifier()
+            )
         )
             
      
     @task(name='Train Model', cache_policy=NO_CACHE)
-    def fit(self, train_input: TrainInput) -> LGBMClassifier:
+    def fit(self, x: np.ndarray, y: np.ndarray) -> LGBMClassifier:
         """Train model
 
         Args:
-            train_input (TrainInput): refer to TrainInput in validate_model_training.py
-
+            x (np.ndarray): independent input
+            y (np.ndarray): dependent input
+            
         Returns:
             LGBMClassifier: target model
         """
         
+        if not isinstance(x, np.ndarray):
+            raise TypeError('x need to be in numpy ndarray type')
+        elif not isinstance(y, np.ndarray):
+            raise TypeError('y need to be in numpy ndarray type')
+        
+        
         logger = get_run_logger()
-        
-        try:
-            logger.info(f'Training {type(self.model).__name__}-{self.model_name}')
-            self.model.fit(train_input.x, train_input.y)
-        
-        except (ValueError, TypeError) as e:
-            logger.error(f'Training failed due to {e}', exc_info=True)
-            raise
-        
+         
+        logger.info(f'Training {type(self.model).__name__}-{self.model_name}')
+        self.model.fit(x, y) 
+      
       
     @task(name='Perform Classification', cache_policy=NO_CACHE)
-    def predict(self, predict_input: PredictInput) -> np.ndarray:
+    def predict(self, x: np.ndarray) -> np.ndarray:
         """Perform prediction / classification
 
         Args:
-            predict_input (PredictInput): refer to PredictInput in validate_model_training.py
+            x (np.ndarray): independent inputs
 
         Returns:
             np.ndarray: result
         """
         
-        logger = get_run_logger()
+        if not isinstance(x, np.ndarray):
+            raise TypeError('x need to be in numpy ndarray type') 
         
-        try:
-            logger.info(f'Classify data with {type(self.model).__name__}-{self.model_name}')
-            return self.model.predict(predict_input.x)
-    
-        except (ValueError, TypeError) as e:
-            logger.error(f'Classification failed due to {e}', exc_info=True)
-            raise
-    
+        logger = get_run_logger()
+         
+        logger.info(f'Classify data with {type(self.model).__name__}-{self.model_name}')
+        return self.model.predict(x)
+     
     
     @task(name='Get Confidence Score', cache_policy=NO_CACHE)
-    def predict_proba(self, predict_proba_input: PredictProbaInput) -> np.ndarray:
+    def predict_proba(self, x: np.ndarray) -> np.ndarray:
         """Retrieve prediction or classification probability
 
         Args:
-            predict_proba_input (PredictProbaInput): refer to PredictProbaInput in validate_model_training.py
+            x (np.ndarray): independent inputs
 
         Returns:
             np.ndarray: probability list
         """
         
+        if not isinstance(x, np.ndarray):
+            raise TypeError('x need to be in numpy ndarray type') 
+         
         logger = get_run_logger()
         
         try:
             logger.info(f'Retrieving confidence score of {type(self.model).__name__}-{self.model_name}')
-            return self.model.predict_proba(predict_proba_input.x).max(axis=1)
+            return self.model.predict_proba(x).max(axis=1)
         
         except (ValueError, TypeError) as e:
             logger.error(f'Failed to calculate prediction probability due to {e}', exc_info=True)

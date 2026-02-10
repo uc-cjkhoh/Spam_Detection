@@ -9,16 +9,10 @@ from imblearn.over_sampling import SMOTE
 from prefect import task, get_run_logger
 from prefect.cache_policies import NO_CACHE 
 
-from data_validation.utils_validation.validate_util import CreateFolderFilesConfig, \
-    SamplingConfig, OversamplingInput, GetUniquePatternInput
-    
 
 @task(name='Create require files and directories', cache_policy=NO_CACHE)
-def create_require_files_and_directories(config: CreateFolderFilesConfig): 
+def create_require_files_and_directories(config): 
     """Create require files and directories, if any
-    
-        Args:
-            config (CreateFolderFilesConfig): refer to CreateFolderFilesConfig in validate_util.py
     """
     
     logger = get_run_logger()
@@ -38,11 +32,12 @@ def create_require_files_and_directories(config: CreateFolderFilesConfig):
 
 
 @task(name='Stratified Sampling', cache_policy=NO_CACHE)
-def stratified_sampling(sampling_config: SamplingConfig) -> tuple[pd.Series, pd.Series, pd.DataFrame]:
+def stratified_sampling(config, db) -> tuple[pd.Series, pd.Series, pd.DataFrame]:
     """Stratified Sampling
 
     Args:
-        sampling_config (SamplingConfig): refer to SamplingConfig in validate_util.py
+        config (dict): config.yaml settings
+        db (Database): MySQL Connection
 
     Returns:
         tuple[pd.Series, pd.Series, pd.DataFrame]: payload ids, payload datetime, payloads
@@ -51,7 +46,7 @@ def stratified_sampling(sampling_config: SamplingConfig) -> tuple[pd.Series, pd.
     logger = get_run_logger()
     
     try:
-        data = sampling_config.db.get_records(sampling_config.config.stratified_sampling)
+        data = db.get_records(config.stratified_sampling)
         return data['id'], data['current_datetime'], data['payload']
     
     except Exception as e:
@@ -60,27 +55,29 @@ def stratified_sampling(sampling_config: SamplingConfig) -> tuple[pd.Series, pd.
 
 
 @task(name='Oversampling', cache_policy=NO_CACHE)
-def oversampling(oversampling_input: OversamplingInput) -> tuple[np.ndarray, np.ndarray]:
+def oversampling(x: np.ndarray, y: np.ndarray, k_neighbors: int = 3) -> tuple[np.ndarray, np.ndarray]:
     """Perform Oversampling
 
     Args:
-        oversampling_input (OversamplingInput): refer to OversamplingInput in validate_util.py
+        x (np.ndarray): independent value
+        y (np.ndarray): dependent value
+        k_neighbors (int, optional): number of neighbours. Defaults to 3.
 
     Returns:
         tuple[np.ndarray, np.ndarray]: resampled independent, resample dependent
     """
-    
+     
     logger = get_run_logger()
     
     try:
-        counts = Counter(oversampling_input.y)
+        counts = Counter(y)
         min_class = min(counts.values())
         
         if min_class < 3:
-            return oversampling_input.x, oversampling_input.y
+            return x, y
         
-        smote = SMOTE(k_neighbors=min(oversampling_input.k_neighbors, min_class - 1), random_state=42)
-        resampled_x, resampled_y = smote.fit_resample(oversampling_input.x, oversampling_input.y)    
+        smote = SMOTE(k_neighbors=min(k_neighbors, min_class - 1), random_state=42)
+        resampled_x, resampled_y = smote.fit_resample(x, y)    
         return np.asarray(resampled_x), np.asarray(resampled_y)
     
     except Exception as e:
@@ -89,11 +86,11 @@ def oversampling(oversampling_input: OversamplingInput) -> tuple[np.ndarray, np.
 
 
 @task(name='Remove duplicate patterns', cache_policy=NO_CACHE)
-def get_unique_pattern_ids(get_unique_pattern_input: GetUniquePatternInput) -> list[int]: 
+def get_unique_pattern_ids(embeddings: np.ndarray) -> list[int]: 
     """Retrieve id of payloads contain unique sms pattern
 
     Args:
-        get_unique_pattern_config: GetUniquePatternInput
+        embeddings (np.ndarray): embedded payloads
 
     Returns:
         list[int]: unique sms pattern id
@@ -103,8 +100,8 @@ def get_unique_pattern_ids(get_unique_pattern_input: GetUniquePatternInput) -> l
     
     try:
         hdb = HDBSCAN()
-        cluster_id = hdb.fit_predict(get_unique_pattern_input.embeddings)
-        ids = np.arange(0, get_unique_pattern_input.embeddings.shape[0], 1)
+        cluster_id = hdb.fit_predict(embeddings)
+        ids = np.arange(0, embeddings.shape[0], 1)
         
         retent_df = pd.DataFrame({'ids': ids, 'cluster_id': cluster_id})
         

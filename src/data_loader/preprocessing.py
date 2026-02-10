@@ -4,9 +4,7 @@ import numpy as np
  
 from typing import List, Dict
 from prefect import task
-from prefect.cache_policies import NO_CACHE
-
-from data_validation.data_loader_validation.validate_preprocessing import FeatureEngineering, CleanText
+from prefect.cache_policies import NO_CACHE 
 
 
 class SMSTextCleaner:
@@ -408,40 +406,46 @@ class SMSTextCleaner:
 
 
 @task(name="Feature Engineering", cache_policy=NO_CACHE)
-def feature_engineering(fe_config: FeatureEngineering) -> pd.DataFrame:
+def feature_engineering(payloads: pd.Series) -> pd.DataFrame:
     """Feature engineering
     
         Args:
-            fe_config (FeatureEngineering): pydantic validation, refer to validate_preprocessing.FeatureEngineering
+            payloads (pd.Series): payloads
         
         Returns:
             pd.DataFrame: extracted features
     """
     
+    if not isinstance(payloads, pd.Series):
+        raise TypeError('Payloads need to be in pandas series type')
+    
     cleaner = SMSTextCleaner()
     
-    messages = fe_config.messages.fillna('') 
-    feature_dicts = messages.apply(cleaner.extract_features)
+    payloads = payloads.fillna('') 
+    feature_dicts = payloads.apply(cleaner.extract_features)
     feature_df = pd.DataFrame(feature_dicts.tolist())
     
     return feature_df
 
 
 @task(name="Clean Text", cache_policy=NO_CACHE)
-def clean_text(ct_config: CleanText) -> pd.Series:
+def clean_text(payloads: pd.Series) -> pd.Series:
     """Clean Text
 
         Args:
-            ct_config (CleanText): pydantic validation, refer to validate_preprocessing.CleanText
+            payloads (pd.Series): payloads to clean
             
         Returns:
             pd.Series: cleaned payloads
     """
 
+    if not isinstance(payloads, pd.Series):
+        raise TypeError('Payloads need to be in pandas series type')
+    
     cleaner = SMSTextCleaner()
     
-    messages = ct_config.messages.fillna('')    
-    messages = messages.apply(
+    payloads = payloads.fillna('')    
+    payloads = payloads.apply(
         lambda x: cleaner.clean(
             x, 
             remove_emojis=True, 
@@ -450,4 +454,4 @@ def clean_text(ct_config: CleanText) -> pd.Series:
         )
     ) 
     
-    return messages
+    return payloads

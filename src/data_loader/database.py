@@ -5,34 +5,36 @@ from sqlalchemy.dialects.mysql import insert
 from sqlalchemy import create_engine, text, MetaData, Table, Column
 from sqlalchemy.dialects.mysql import BIGINT, DATETIME, SMALLINT, DOUBLE, VARCHAR
 from sqlalchemy.exc import ArgumentError, OperationalError, StatementError, CompileError
- 
-from data_validation.data_loader_validation.validate_database import MySQLConfig, RunStatement, GetRecords, SaveToMySQL
-
+  
 from prefect import task, get_run_logger
 from prefect.cache_policies import NO_CACHE 
 
-
+ 
 class Database:
-    def __init__(self, db_config: MySQLConfig):
+    def __init__(self, host: str, port: int, username: str, password: str, table_schema: str):
         """
         Initiate MySQL Connection
 
         Args:
-            db_config: DatabaseConfig
+            host (str): host name 
+            port (int): port number 
+            username (str): username
+            password (str): password
+            table_schema (str): schema
         """
         
         logger = get_run_logger()
          
-        self.schema = db_config.table_schema
+        self.schema = table_schema
         
         try:
             connection_url = URL.create(
                 drivername='mysql+pymysql',
-                host=db_config.host,
-                port=db_config.port,
-                username=db_config.user,
-                password=db_config.password,
-                database=db_config.table_schema
+                host=host,
+                port=port,
+                username=username,
+                password=password,
+                database=table_schema
             )
             
             logger.info(f'Connecting to: {connection_url.render_as_string(hide_password=True)}')
@@ -50,20 +52,23 @@ class Database:
   
   
     @task(name="Run SQL Statement", cache_policy=NO_CACHE)
-    def run_statement(self, run_statement: RunStatement):
+    def run_statement(self, statement: str):
         """
         Run SQL statement like DDL, DML
 
         Args:
-            run_statement (RunStatement): statement to run
+            statement (str): statement to run
         """
+        
+        if not isinstance(statement, str):
+            raise TypeError('Statement must be in string type')
         
         logger = get_run_logger()
         
         try:
-            logger.info(f'Executing statement: {run_statement.statement}', exc_info=True)
+            logger.info(f'Executing statement: {statement}', exc_info=True)
             with self.engine.begin() as conn:
-                conn.execute(text(run_statement.statement))
+                conn.execute(text(statement))
         
         except StatementError as e:
             logger.error(f'Invalid statement: {e}', exc_info=True)
@@ -71,28 +76,28 @@ class Database:
         except CompileError as e:
             logger.error(f'Compile error when trying: {e}', exc_info=True)
             raise
-        except (ValueError, TypeError) as e:
-            logger.error(f'Failed to run statement due to {e}', exc_info=True)
-            raise
       
     
     @task(name="Retrieve Records From MySQL", cache_policy=NO_CACHE)  
-    def get_records(self, get_records: GetRecords) -> pd.DataFrame:
+    def get_records(self, query: str) -> pd.DataFrame:
         """
         Retrieve data from MySQL
 
         Args:
-            get_records (GetRecords): query to run
+            query (str): query to run
 
         Returns:
             pd.DataFrame
         """
         
+        if not isinstance(query, str):
+            raise TypeError('Query must be in string type')
+        
         logger = get_run_logger()
         
         try: 
             with self.engine.connect() as conn:
-                data = pd.read_sql(text(get_records.query), conn) 
+                data = pd.read_sql(text(query), conn) 
                 
             return data
 
@@ -102,19 +107,19 @@ class Database:
         except CompileError as e:
             logger.error(f'Compile error when trying: {e}', exc_info=True)
             raise
-        except (ValueError, TypeError) as e:
-            logger.error(f'Failed to run query due to {e}', exc_info=True)
-            raise
         
     
     @task(name="Save to MySQL", cache_policy=NO_CACHE)
-    def save_to_mysql(self, save_to_mysql: SaveToMySQL):
+    def save_to_mysql(self, data: dict):
         """
         Save data to MySQL
 
         Args:
-            save_to_mysql (SaveToMySQL): data to save
+            data (dict): data to save
         """ 
+        
+        if not isinstance(data, dict):
+            raise TypeError('Data need to be in dict type')
         
         logger = get_run_logger()
         
@@ -138,7 +143,7 @@ class Database:
             
             with self.engine.connect() as conn:
                 try:
-                    insert_statement = insert(target_table).values(save_to_mysql.data) 
+                    insert_statement = insert(target_table).values(data) 
                     on_duplicate_key_statement = insert_statement.on_duplicate_key_update(
                         spam_label=insert_statement.inserted.spam_label,
                         confidence_score=insert_statement.inserted.confidence_score,

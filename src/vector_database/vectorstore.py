@@ -6,8 +6,8 @@ from prefect.cache_policies import NO_CACHE
 
 from tqdm import tqdm
 from scipy import stats
-from data_validation.vectorstore_validation.validate_vectorstore import VectorstoreConfig, \
-    LoadDataFrameInput, LabelUncertainConfig
+from langchain_huggingface import HuggingFaceEmbeddings
+from data_validation.vectorstore_validation.validate_vectorstore import VectorstoreConfig
 
 import os
 import numpy as np
@@ -15,7 +15,7 @@ import pandas as pd
 
 
 class VectorStore: 
-    def __init__(self, vectorstore_config: VectorstoreConfig):
+    def __init__(self, vectorstore_config: VectorstoreConfig, embedding: HuggingFaceEmbeddings):
         """Initiate vectorstore
 
         Args:
@@ -24,7 +24,7 @@ class VectorStore:
         
         self.directory = vectorstore_config.directory 
         self.filename = vectorstore_config.filename 
-        self.embedding = vectorstore_config.embedding
+        self.embedding = embedding
         self.faiss = None
      
     
@@ -59,22 +59,28 @@ class VectorStore:
             
     
     @task(name='Initial vectorstore with dataframme', cache_policy=NO_CACHE)
-    def load_with_dataframe(self, load_df_input: LoadDataFrameInput):
+    def load_with_dataframe(self, data: pd.DataFrame, save: bool = True):
         """Setup a base faiss index
 
         Args:
-            load_df_input (pd.LoadDataFrameInput): refer to LoadDataFrameInput in validate_vectorstore.py
+            data (pd.DataFrame): data to saved
+            save (bool): whether to save index
 
         Raises:
             TypeError: if parameter is not dataframe or missing 
         """
+        
+        if not isinstance(data, pd.DataFrame):
+            raise TypeError('Data need to be in pandas Dataframe type')
+        elif not isinstance(save, bool):
+            raise TypeError('Save attribute need to be boolean type')
 
         logger = get_run_logger()
 
         try: 
             documents = [
                 Document(page_content=payload, metadata={'label': label, 'document_id': i})
-                for i, (payload, label) in enumerate(zip(*load_df_input.data.T.to_numpy()))
+                for i, (payload, label) in enumerate(zip(*data.T.to_numpy()))
             ]
             
             self.faiss = FAISS.from_documents(
@@ -82,7 +88,7 @@ class VectorStore:
                 embedding=self.embedding
             )
             
-            if load_df_input.save:
+            if save:
                 self.faiss.save_local(folder_path=self.directory, index_name=self.filename)
                  
         except TypeError as e:
@@ -122,11 +128,11 @@ class VectorStore:
 
 
     @task(name="Label uncertain data", cache_policy=NO_CACHE)
-    def label_uncertains(self, label_uncertain_config: LabelUncertainConfig) -> tuple[np.ndarray, np.ndarray]:
+    def label_uncertains(self, sentences: list) -> tuple[np.ndarray, np.ndarray]:
         """Label uncertain embeddings with vectorstore's similarity search
 
         Args:
-            label_uncertain_config (LabelUncertainConfig): uncertain embeddings for model to label
+            sentences (list): uncertain embeddings for model to label
 
         Raises:
             TypeError: if parameter's name is wrong, type is wrnog or missing
@@ -134,6 +140,9 @@ class VectorStore:
         Returns:
             tuple[np.ndarray, np.ndarray]: list of binary labels
         """
+        
+        if not isinstance(sentences, list):
+            raise TypeError('Sentences need to be in list type')
          
         logger = get_run_logger()
          
@@ -141,7 +150,7 @@ class VectorStore:
         labels = []
         
         try:
-            for sentence in tqdm(label_uncertain_config.sentences):
+            for sentence in tqdm(sentences):
                 top_k_labels = []
                 
                 docs = self.faiss.similarity_search(query=sentence, k=50)
