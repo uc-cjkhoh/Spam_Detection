@@ -111,9 +111,9 @@ def get_unique_pattern_ids(embeddings: np.ndarray) -> list[int]:
         unique_non_outlier_ids = non_outlier_df.groupby('cluster_id').head(5)['ids'].to_numpy(dtype=int)
         unique_outlier_ids = outlier_df['ids'].to_numpy(dtype=int)
         
-        retent_ids = np.hstack((unique_non_outlier_ids, unique_outlier_ids))
-        
+        retent_ids = np.hstack((unique_non_outlier_ids, unique_outlier_ids))    
         return retent_ids
+    
     except Exception as e:
         logger.error(f"Error in get_unique_pattern_ids: {e}", exc_info=True)
         raise

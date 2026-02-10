@@ -7,7 +7,7 @@ class DatabaseConfig(BaseModel):
     user: str
     password: str
     table_schema: str    
-
+    
 
 class EmbeddingConfig(BaseModel):
     model_name: str
