@@ -6,7 +6,7 @@ class DatabaseConfig(BaseModel):
     port: int
     user: str
     password: str
-    schema: str    
+    table_schema: str    
 
 
 class EmbeddingConfig(BaseModel):
@@ -31,13 +31,13 @@ class ProjectConfig(BaseModel):
     target_column: str
     number_of_uncertain: int
     threshold: float
+    initial_data: str
+    test_data: str
+    labeled_data: str
+    stratified_sampling: str
     
     database: DatabaseConfig
     embedding: EmbeddingConfig
     ml_model: MLModelConfig
     vectorstore: VectorstoreConfig
     
-    initial_data: str
-    test_data: str
-    labeled_data: str
-    stratified_sampling: str

@@ -11,7 +11,7 @@ database:
   port: 3306
   user: 'unified'
   password: 'unified'
-  schema: 'sms_spam_cd'
+  table_schema: 'sms_spam_cd'
 
  
 embedding:
@@ -76,8 +76,7 @@ stratified_sampling:
     FROM
         sms_spam_cd.data_tdr_spam_filter 
     where
-      DAY(current_datetime) != 22 
-      and HOUR(current_datetime) between 10 and 13
+      DAY(current_datetime) = 22 
   )
   SELECT
     id,

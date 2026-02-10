@@ -67,7 +67,7 @@ def setup_environment(config) -> tuple[Database, VectorStore, HuggingFaceEmbeddi
             port=config.database.port, 
             user=config.database.user, 
             password=config.database.password,
-            schema=config.database.schema
+            schema=config.database.table_schema
         )
             
         logger.info('Create vectorstore')
