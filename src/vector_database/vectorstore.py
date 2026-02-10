@@ -1,6 +1,5 @@
 from langchain.schema import Document
 from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
 
 from prefect import task, get_run_logger
 from prefect.cache_policies import NO_CACHE 
