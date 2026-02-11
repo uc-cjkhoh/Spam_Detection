@@ -1,6 +1,7 @@
 import os
 import mlflow
 import numpy as np
+import pandas as pd
 
 from mlflow.exceptions import MlflowException
 from sklearn.preprocessing import StandardScaler
@@ -17,7 +18,6 @@ from src.data_loader.preprocessing import feature_engineering
 from src.utils.util import create_require_files_and_directories, get_unique_pattern_ids, oversampling
   
 from data_validation.configs_validation.validate_config_loader import ProjectConfig
-from data_validation.ml_validation.validate_model_training import LGBMConfig
 from data_validation.vectorstore_validation.validate_vectorstore import VectorstoreConfig
 
  
@@ -60,7 +60,7 @@ def setup_environment(config: ProjectConfig) -> tuple[Database, VectorStore, Hug
         )
         
         logger.info('Create LGBM model')
-        model = LGBM(LGBMConfig(model_name=config.ml_model.model_name)) 
+        model = LGBM(model_name=config.ml_model.model_name)
         
         
         logger.info('Connect to MySQL')
@@ -130,8 +130,8 @@ def load_training_data(config: ProjectConfig, database: Database, vectorstore: V
         initial_features = feature_engineering(initial_payloads) 
         
         stds = initial_features.std(axis=0)
-        non_variance_col_ids = stds > 0
-        initial_features = initial_features.loc[:, non_variance_col_ids]
+        non_zero_variance_col = stds > 0
+        initial_features = initial_features.loc[:, non_zero_variance_col]
         initial_features = scaler.fit_transform(initial_features)
         
         logger.info('Stack embeddings and features horizontally')
@@ -149,7 +149,7 @@ def load_training_data(config: ProjectConfig, database: Database, vectorstore: V
             
             logger.info('Perform feature engineering')
             prelabeled_features = feature_engineering(prelabeled_payloads) 
-            prelabeled_features = prelabeled_features.loc[:, non_variance_col_ids]
+            prelabeled_features = prelabeled_features.loc[:, non_zero_variance_col]
             prelabeled_features = scaler.transform(prelabeled_features)
             
             logger.info('Perform sentence embeddings')
@@ -170,7 +170,7 @@ def load_training_data(config: ProjectConfig, database: Database, vectorstore: V
         logger.info('Perform oversampling')
         x_train, y_train = oversampling(x_train, y_train) 
         
-        return x_train, y_train, non_variance_col_ids
+        return x_train, y_train, non_zero_variance_col
  
     except KeyError as e:
         logger.error(f'Missing config key: {e}', exc_info=True)
@@ -213,7 +213,7 @@ def load_testing_data(config, database, embedding_model, scaler, zero_variance_c
         test_embeddings = embedding_model.embed_documents(test_payloads)
         combined_test_embeddings = np.hstack((test_features, test_embeddings))
         
-        return combined_test_embeddings, test_labels
+        return combined_test_embeddings, test_labels.to_numpy()
     
     except KeyError as e:
         logger.error(f'Invalid config key: {e}', exc_info=True)
@@ -235,16 +235,57 @@ def main():
     database, vectorstore, embedding_model, model = setup_environment(config)
     
     logger.info('Load training data')
-    x_train, y_train, zero_variance_column_ids = load_training_data(config, database, vectorstore, embedding_model, scaler)
+    x_train, y_train, column_to_keep = load_training_data(config, database, vectorstore, embedding_model, scaler)
     
     logger.info('Load testing data') 
-    x_test, y_test = load_testing_data(config, database, embedding_model, scaler, zero_variance_column_ids)
+    x_test, y_test = load_testing_data(config, database, embedding_model, scaler, column_to_keep)
 
     logger.info('Train model')
     model.fit(x_train, y_train)
 
     logger.info('Evaluate model')
     model.evaluate(x_test, y_test)
+
+    logger.info('Select new batch of data')
+    stratified_data = database.get_records(config.stratified_sampling)
+    new_batch_data_id = stratified_data['id'] 
+    new_batch_data_dt = stratified_data['current_datetime']
+    new_batch_data_msg = stratified_data['payload']
+    
+    logger.info('Preprocessing new batch of data')
+    new_batch_data_features = feature_engineering(new_batch_data_msg.copy())
+    new_batch_data_features = new_batch_data_features.loc[:, column_to_keep]
+    new_batch_data_features = scaler.transform(new_batch_data_features)
+    
+    new_batch_data_embedding = embedding_model.embed_documents(new_batch_data_msg)
+    new_x_train = np.hstack((new_batch_data_features, new_batch_data_embedding))
+    
+    logger.info('Perform classification with base model')
+    result = model.predict(new_x_train)
+    confidence_score = model.predict_proba(new_x_train)
+    
+    logger.info('Retrieve high confidence prediction result')
+    high_conf_ids = np.where(confidence_score >= config.threshold)[0]
+     
+    logger.info('Retrieve uncertain data')
+    uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), config.number_of_uncertain)[:config.number_of_uncertain]
+    
+    logger.info('Generate a column to tell data requires human inspection')
+    label_status = np.zeros(confidence_score.shape)
+    label_status[high_conf_ids] = 1
+    label_status[uncertain_ids] = -1
+    
+    logger.info('Send data to MySQL')
+    database.save_to_mysql(
+        pd.DataFrame({
+            'id': new_batch_data_id,
+            'datetime': new_batch_data_dt,
+            'spam_label': result,
+            'confidence_score': confidence_score,
+            'label_status': label_status,
+            'model': type(model).__name__
+        }).to_dict(orient='records')
+    )
      
     database.close_connection() 
 

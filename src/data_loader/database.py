@@ -110,7 +110,7 @@ class Database:
         
     
     @task(name="Save to MySQL", cache_policy=NO_CACHE)
-    def save_to_mysql(self, data: dict):
+    def save_to_mysql(self, data: list):
         """
         Save data to MySQL
 
@@ -118,8 +118,8 @@ class Database:
             data (dict): data to save
         """ 
         
-        if not isinstance(data, dict):
-            raise TypeError('Data need to be in dict type')
+        if not isinstance(data, list):
+            raise TypeError('Data need to be in list type')
         
         logger = get_run_logger()
         

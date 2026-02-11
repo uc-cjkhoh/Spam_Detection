@@ -23,5 +23,5 @@ sqlalchemy
 torch==2.8.0+cpu
 torchvision
 tqdm
-xgboost
+lightgbm
 shap

@@ -76,7 +76,20 @@ def main():
              
     engine = create_engine(connection_url)
      
-    data = get_data(RetrieveData(engine=engine, query=config.stratified_sampling)) 
+    data = get_data(
+        RetrieveData(
+            engine=engine, 
+            query="""
+                select 
+                    id,
+                    payload,
+                    spam_label
+                from 
+                    sms_spam_cd.initial_data 
+                where 
+                    day(datetime) = 22 
+                """
+            )) 
     
     start = time.perf_counter()  
     send_request(ClassifyRequest(api_uri='http://10.168.49.12:7654/classify', data=data, rate=32))
