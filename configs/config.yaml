@@ -1,5 +1,5 @@
 mlflow_uri: 'http://10.168.49.12:5000'
-experiment_name: 'refactored_code_performance'
+experiment_name: 'simplier_embeddings_performance'
 label_column: 'spam_label'
 target_column: 'payload'
 number_of_uncertain: 500
@@ -15,7 +15,7 @@ database:
 
  
 embedding:
-  model_name: 'jinaai/jina-embeddings-v3'
+  model_name: 'sentence-transformers/all-MiniLM-L6-v2'
   batch_size: 8
   normalize_embeddings: True
   show_progress: True

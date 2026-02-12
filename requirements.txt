@@ -21,7 +21,7 @@ pyyaml
 sentence-transformers
 sqlalchemy
 torch==2.8.0+cpu
-torchvision
 tqdm
 lightgbm
 shap
+fastapi

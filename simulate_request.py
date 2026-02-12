@@ -92,7 +92,7 @@ def main():
             )) 
     
     start = time.perf_counter()  
-    send_request(ClassifyRequest(api_uri='http://10.168.49.12:7654/classify', data=data, rate=32))
+    send_request(ClassifyRequest(api_uri='http://10.168.49.12:7654/classify', data=data, rate=1))
     end = time.perf_counter()
     
     print(f'Runtime: {end - start:.6f} seconds') 

@@ -1,4 +1,5 @@
 import os
+import joblib 
 import mlflow
 import numpy as np
 import pandas as pd
@@ -50,8 +51,7 @@ def setup_environment(config: ProjectConfig) -> tuple[Database, VectorStore, Hug
         
         logger.info('Create embedding model')
         embedding_model = HuggingFaceEmbeddings(
-            model_name=config.embedding.model_name, 
-            model_kwargs={'trust_remote_code': True}, 
+            model_name=config.embedding.model_name,
             encode_kwargs={
                 'batch_size': config.embedding.batch_size, 
                 'normalize_embeddings': config.embedding.normalize_embeddings
@@ -127,11 +127,7 @@ def load_training_data(config: ProjectConfig, database: Database, vectorstore: V
         initial_payloads, initial_embeddings, initial_labels = vectorstore.return_pagecontent_embeddings_and_labels()
         
         logger.info('Perform feature engineering')
-        initial_features = feature_engineering(initial_payloads) 
-        
-        stds = initial_features.std(axis=0)
-        non_zero_variance_col = stds > 0
-        initial_features = initial_features.loc[:, non_zero_variance_col]
+        initial_features = feature_engineering(initial_payloads)  
         initial_features = scaler.fit_transform(initial_features)
         
         logger.info('Stack embeddings and features horizontally')
@@ -148,8 +144,7 @@ def load_training_data(config: ProjectConfig, database: Database, vectorstore: V
             prelabeled_labels = prelabeled_data[config.label_column]
             
             logger.info('Perform feature engineering')
-            prelabeled_features = feature_engineering(prelabeled_payloads) 
-            prelabeled_features = prelabeled_features.loc[:, non_zero_variance_col]
+            prelabeled_features = feature_engineering(prelabeled_payloads)  
             prelabeled_features = scaler.transform(prelabeled_features)
             
             logger.info('Perform sentence embeddings')
@@ -170,7 +165,7 @@ def load_training_data(config: ProjectConfig, database: Database, vectorstore: V
         logger.info('Perform oversampling')
         x_train, y_train = oversampling(x_train, y_train) 
         
-        return x_train, y_train, non_zero_variance_col
+        return x_train, y_train 
  
     except KeyError as e:
         logger.error(f'Missing config key: {e}', exc_info=True)
@@ -187,7 +182,7 @@ def load_training_data(config: ProjectConfig, database: Database, vectorstore: V
 
 
 @task(name='Load Testing Data', cache_policy=NO_CACHE)
-def load_testing_data(config, database, embedding_model, scaler, zero_variance_column_ids) -> tuple[np.ndarray, np.ndarray]:
+def load_testing_data(config, database, embedding_model, scaler) -> tuple[np.ndarray, np.ndarray]:
     """Load testing data
 
     Args:
@@ -206,8 +201,7 @@ def load_testing_data(config, database, embedding_model, scaler, zero_variance_c
         test_payloads = test_data[config.target_column]
         test_labels = test_data[config.label_column]
         
-        test_features = feature_engineering(test_payloads.copy())
-        test_features = test_features.loc[:, zero_variance_column_ids]
+        test_features = feature_engineering(test_payloads.copy()) 
         test_features = scaler.transform(test_features)
         
         test_embeddings = embedding_model.embed_documents(test_payloads)
@@ -235,57 +229,59 @@ def main():
     database, vectorstore, embedding_model, model = setup_environment(config)
     
     logger.info('Load training data')
-    x_train, y_train, column_to_keep = load_training_data(config, database, vectorstore, embedding_model, scaler)
+    x_train, y_train = load_training_data(config, database, vectorstore, embedding_model, scaler)
     
     logger.info('Load testing data') 
-    x_test, y_test = load_testing_data(config, database, embedding_model, scaler, column_to_keep)
+    x_test, y_test = load_testing_data(config, database, embedding_model, scaler)
 
+    joblib.dump(scaler, f'./deploy/app/scaler/{config.experiment_name}_standard_scaler.joblib')
+     
     logger.info('Train model')
     model.fit(x_train, y_train)
 
     logger.info('Evaluate model')
     model.evaluate(x_test, y_test)
 
-    logger.info('Select new batch of data')
-    stratified_data = database.get_records(config.stratified_sampling)
-    new_batch_data_id = stratified_data['id'] 
-    new_batch_data_dt = stratified_data['current_datetime']
-    new_batch_data_msg = stratified_data['payload']
+    # logger.info('Select new batch of data')
+    # stratified_data = database.get_records(config.stratified_sampling)
+    # new_batch_data_id = stratified_data['id'] 
+    # new_batch_data_dt = stratified_data['current_datetime']
+    # new_batch_data_msg = stratified_data['payload']
     
-    logger.info('Preprocessing new batch of data')
-    new_batch_data_features = feature_engineering(new_batch_data_msg.copy())
-    new_batch_data_features = new_batch_data_features.loc[:, column_to_keep]
-    new_batch_data_features = scaler.transform(new_batch_data_features)
+    # logger.info('Preprocessing new batch of data')
+    # new_batch_data_features = feature_engineering(new_batch_data_msg.copy())
+    # new_batch_data_features = new_batch_data_features.loc[:, column_to_keep]
+    # new_batch_data_features = scaler.transform(new_batch_data_features)
     
-    new_batch_data_embedding = embedding_model.embed_documents(new_batch_data_msg)
-    new_x_train = np.hstack((new_batch_data_features, new_batch_data_embedding))
+    # new_batch_data_embedding = embedding_model.embed_documents(new_batch_data_msg)
+    # new_x_train = np.hstack((new_batch_data_features, new_batch_data_embedding))
     
-    logger.info('Perform classification with base model')
-    result = model.predict(new_x_train)
-    confidence_score = model.predict_proba(new_x_train)
+    # logger.info('Perform classification with base model')
+    # result = model.predict(new_x_train)
+    # confidence_score = model.predict_proba(new_x_train)
     
-    logger.info('Retrieve high confidence prediction result')
-    high_conf_ids = np.where(confidence_score >= config.threshold)[0]
+    # logger.info('Retrieve high confidence prediction result')
+    # high_conf_ids = np.where(confidence_score >= config.threshold)[0]
      
-    logger.info('Retrieve uncertain data')
-    uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), config.number_of_uncertain)[:config.number_of_uncertain]
+    # logger.info('Retrieve uncertain data')
+    # uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), config.number_of_uncertain)[:config.number_of_uncertain]
     
-    logger.info('Generate a column to tell data requires human inspection')
-    label_status = np.zeros(confidence_score.shape)
-    label_status[high_conf_ids] = 1
-    label_status[uncertain_ids] = -1
+    # logger.info('Generate a column to tell data requires human inspection')
+    # label_status = np.zeros(confidence_score.shape)
+    # label_status[high_conf_ids] = 1
+    # label_status[uncertain_ids] = -1
     
-    logger.info('Send data to MySQL')
-    database.save_to_mysql(
-        pd.DataFrame({
-            'id': new_batch_data_id,
-            'datetime': new_batch_data_dt,
-            'spam_label': result,
-            'confidence_score': confidence_score,
-            'label_status': label_status,
-            'model': type(model).__name__
-        }).to_dict(orient='records')
-    )
+    # logger.info('Send data to MySQL')
+    # database.save_to_mysql(
+    #     pd.DataFrame({
+    #         'id': new_batch_data_id,
+    #         'datetime': new_batch_data_dt,
+    #         'spam_label': result,
+    #         'confidence_score': confidence_score,
+    #         'label_status': label_status,
+    #         'model': type(model).__name__
+    #     }).to_dict(orient='records')
+    # )
      
     database.close_connection() 
 
