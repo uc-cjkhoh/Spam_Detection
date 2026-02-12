@@ -1,9 +1,7 @@
 import pandas as pd 
 
 from sqlalchemy.engine import URL
-from sqlalchemy.dialects.mysql import insert
-from sqlalchemy import create_engine, text, MetaData, Table, Column
-from sqlalchemy.dialects.mysql import BIGINT, DATETIME, SMALLINT, DOUBLE, VARCHAR
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import ArgumentError, OperationalError, StatementError, CompileError
   
 from prefect import task, get_run_logger
