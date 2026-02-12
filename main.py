@@ -16,7 +16,7 @@ from src.data_loader.database import Database
 from src.vector_database.vectorstore import VectorStore 
 from src.config_folder.config_loader import get_config
 from src.data_loader.preprocessing import feature_engineering
-from src.utils.util import create_require_files_and_directories, get_unique_pattern_ids, oversampling
+from src.utils.util import create_require_files_and_directories, oversampling
   
 from data_validation.configs_validation.validate_config_loader import ProjectConfig
 from data_validation.vectorstore_validation.validate_vectorstore import VectorstoreConfig
@@ -157,11 +157,6 @@ def load_training_data(config: ProjectConfig, database: Database, vectorstore: V
             x_train = np.vstack((combined_initial_embeddings, combined_prelabeled_embeddings))
             y_train = np.concatenate((np.ravel(initial_labels), np.ravel(prelabeled_labels))).astype(int)
         
-        retent_ids = get_unique_pattern_ids(x_train)
-        x_train = x_train[retent_ids]
-        y_train = y_train[retent_ids]
-        logger.info(f'Reduce number of payload to {len(x_train)}')
-        
         logger.info('Perform oversampling')
         x_train, y_train = oversampling(x_train, y_train) 
         
@@ -242,46 +237,47 @@ def main():
     logger.info('Evaluate model')
     model.evaluate(x_test, y_test)
 
-    # logger.info('Select new batch of data')
-    # stratified_data = database.get_records(config.stratified_sampling)
-    # new_batch_data_id = stratified_data['id'] 
-    # new_batch_data_dt = stratified_data['current_datetime']
-    # new_batch_data_msg = stratified_data['payload']
+    logger.info('Select new batch of data')
+    stratified_data = database.get_records(config.stratified_sampling)
+    new_batch_data_id = stratified_data['id'] 
+    new_batch_data_dt = stratified_data['current_datetime']
+    new_batch_data_msg = stratified_data['payload']
     
-    # logger.info('Preprocessing new batch of data')
-    # new_batch_data_features = feature_engineering(new_batch_data_msg.copy())
-    # new_batch_data_features = new_batch_data_features.loc[:, column_to_keep]
-    # new_batch_data_features = scaler.transform(new_batch_data_features)
+    logger.info('Preprocessing new batch of data')
+    new_batch_data_features = feature_engineering(new_batch_data_msg.copy())
+    new_batch_data_features = scaler.transform(new_batch_data_features)
     
-    # new_batch_data_embedding = embedding_model.embed_documents(new_batch_data_msg)
-    # new_x_train = np.hstack((new_batch_data_features, new_batch_data_embedding))
+    new_batch_data_embedding = embedding_model.embed_documents(new_batch_data_msg)
+    new_x_train = np.hstack((new_batch_data_features, new_batch_data_embedding))
     
-    # logger.info('Perform classification with base model')
-    # result = model.predict(new_x_train)
-    # confidence_score = model.predict_proba(new_x_train)
+    logger.info('Perform classification with base model')
+    result = model.predict(new_x_train)
+    confidence_score = model.predict_proba(new_x_train)
     
-    # logger.info('Retrieve high confidence prediction result')
-    # high_conf_ids = np.where(confidence_score >= config.threshold)[0]
+    logger.info('Retrieve high confidence prediction result')
+    high_conf_ids = np.where(confidence_score >= config.threshold)[0]
      
-    # logger.info('Retrieve uncertain data')
-    # uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), config.number_of_uncertain)[:config.number_of_uncertain]
+    logger.info('Retrieve uncertain data')
+    uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), config.number_of_uncertain)[:config.number_of_uncertain]
     
-    # logger.info('Generate a column to tell data requires human inspection')
-    # label_status = np.zeros(confidence_score.shape)
-    # label_status[high_conf_ids] = 1
-    # label_status[uncertain_ids] = -1
+    logger.info('Generate a column to tell data requires human inspection')
+    label_status = np.zeros(confidence_score.shape)
+    label_status[high_conf_ids] = 1
+    label_status[uncertain_ids] = -1
     
-    # logger.info('Send data to MySQL')
-    # database.save_to_mysql(
-    #     pd.DataFrame({
-    #         'id': new_batch_data_id,
-    #         'datetime': new_batch_data_dt,
-    #         'spam_label': result,
-    #         'confidence_score': confidence_score,
-    #         'label_status': label_status,
-    #         'model': type(model).__name__
-    #     }).to_dict(orient='records')
-    # )
+    logger.info('Send data to MySQL')
+    database.save_to_mysql(
+        data=pd.DataFrame({
+            'id': new_batch_data_id,
+            'datetime': new_batch_data_dt,
+            'spam_label': result,
+            'confidence_score': confidence_score,
+            'label_status': label_status,
+            'model': type(model).__name__
+        }),
+        destination_table=config.table_to_save_result,
+        on_duplicate=['spam_label', 'confidence_score', 'label_status', 'model', 'iter_involved']
+    )
      
     database.close_connection() 
 

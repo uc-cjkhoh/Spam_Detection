@@ -86,11 +86,12 @@ def oversampling(x: np.ndarray, y: np.ndarray, k_neighbors: int = 3) -> tuple[np
 
 
 @task(name='Remove duplicate patterns', cache_policy=NO_CACHE)
-def get_unique_pattern_ids(embeddings: np.ndarray) -> list[int]: 
+def get_unique_pattern_ids(embeddings: np.ndarray, keep_n: str) -> list[int]: 
     """Retrieve id of payloads contain unique sms pattern
 
     Args:
         embeddings (np.ndarray): embedded payloads
+        keep_n (int): number of items for each cluster
 
     Returns:
         list[int]: unique sms pattern id
@@ -108,7 +109,7 @@ def get_unique_pattern_ids(embeddings: np.ndarray) -> list[int]:
         non_outlier_df = retent_df[retent_df.cluster_id != -1]
         outlier_df = retent_df[retent_df.cluster_id == -1]
         
-        unique_non_outlier_ids = non_outlier_df.groupby('cluster_id').head(5)['ids'].to_numpy(dtype=int)
+        unique_non_outlier_ids = non_outlier_df.groupby('cluster_id').head(keep_n)['ids'].to_numpy(dtype=int)
         unique_outlier_ids = outlier_df['ids'].to_numpy(dtype=int)
         
         retent_ids = np.hstack((unique_non_outlier_ids, unique_outlier_ids))    

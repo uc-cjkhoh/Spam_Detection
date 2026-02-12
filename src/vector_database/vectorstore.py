@@ -6,6 +6,7 @@ from prefect.cache_policies import NO_CACHE
 
 from tqdm import tqdm
 from scipy import stats
+from sklearn.metrics.pairwise import cosine_similarity
 from langchain_huggingface import HuggingFaceEmbeddings
 from data_validation.vectorstore_validation.validate_vectorstore import VectorstoreConfig
 

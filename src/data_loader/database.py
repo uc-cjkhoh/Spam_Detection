@@ -110,56 +110,45 @@ class Database:
         
     
     @task(name="Save to MySQL", cache_policy=NO_CACHE)
-    def save_to_mysql(self, data: list):
+    def save_to_mysql(self, data: pd.DataFrame, destination_table: str, on_duplicate: list[str] = None):
         """
         Save data to MySQL
 
         Args:
             data (dict): data to save
+            destination_table (str): target table 
+            on_duplicate (list[str]): duplicate update criteria
         """ 
         
-        if not isinstance(data, list):
+        if not isinstance(data, pd.DataFrame):
             raise TypeError('Data need to be in list type')
         
         logger = get_run_logger()
         
-        try:
-            metadata = MetaData()
-            target_table = Table(
-                "label_by_vectordb",
-                metadata,
-                Column('row_id', BIGINT, primary_key=True),
-                Column('id', BIGINT, nullable=False),
-                Column('datetime', DATETIME, nullable=True),
-                Column('spam_label', SMALLINT, nullable=True),
-                Column('confidence_score', DOUBLE, nullable=True),
-                Column('label_status', VARCHAR(20), nullable=True),
-                Column('model', VARCHAR(20), nullable=True),
-                Column('iter_involved', VARCHAR(10), nullable=True),
-                schema=self.schema
+        columns_list = ', '.join(data.columns.to_list())
+        values_list = ':' + ', :'.join(data.columns.to_list())
+        on_duplicate_list = 'ON DUPLICATE KEY UPDATE' + ' ' + ', '.join(['{} = VALUES({})'.format(item, item) for item in on_duplicate]) \
+            if on_duplicate is not None else ''
+        
+        try:  
+            insert_sql = text(
+                f"""
+                    INSERT INTO {self.schema}.{destination_table} ({columns_list})
+                    VALUES ({values_list})
+                    {on_duplicate_list}
+                """
             )
-            
-            metadata.create_all(self.engine)
-            
+
             with self.engine.connect() as conn:
-                try:
-                    insert_statement = insert(target_table).values(data) 
-                    on_duplicate_key_statement = insert_statement.on_duplicate_key_update(
-                        spam_label=insert_statement.inserted.spam_label,
-                        confidence_score=insert_statement.inserted.confidence_score,
-                        label_status=insert_statement.inserted.label_status, 
-                        model=insert_statement.inserted.model,
-                        iter_involved=insert_statement.inserted.iter_involved
-                    )
-                    
-                    conn.execute(on_duplicate_key_statement)
-                    conn.commit() 
-                
+                try: 
+                    conn.execute(insert_sql, data.to_dict(orient="records"))   
+                    conn.commit()
+
                 except OperationalError as e:
                     conn.rollback()
                     logger.error(f'Database connection issue: {e}', exc_info=True)
-                    raise  
-         
+                    raise
+                
         except ArgumentError as e:
             logger.error(f'Invalid argument: {e}', exc_info=True)
             raise
