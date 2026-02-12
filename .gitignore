@@ -4,7 +4,8 @@ prefect/
 evaluation/mlruns/
 evaluation/prefect/
 evaluation/*.csv
-deploy/
+deploy/app/scaler/*
+deploy/app/config/__pycache__/
 deploy/__pycache__/
 __pycache__/
 mlartifacts/

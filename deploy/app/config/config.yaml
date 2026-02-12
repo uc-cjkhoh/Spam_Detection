@@ -1,0 +1,34 @@
+app_name: 'SMS Spam Detection'
+enn: 'dev'
+mlflow_uri: 'http://10.168.49.12:5000'
+model_uri: "models:/lightgbm_model/6"
+experiment_name: 'simplier_embeddings_performance'
+
+database:
+  host: '10.168.51.196'
+  port: 3306
+  user: 'unified'
+  password: 'unified'
+  schema: 'sms_spam_cd'
+
+
+embedding:
+  model_name: 'sentence-transformers/all-MiniLM-L6-v2'
+  batch_size: 32
+  normalize_embeddings: True
+  show_progress: True
+
+
+data: 
+   'select 
+    payload,
+    spam_label
+  from 
+    sms_spam_cd.initial_data 
+  where 
+    day(datetime) = 22 
+  '
+
+
+
+target_column: 'payload'
