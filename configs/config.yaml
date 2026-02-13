@@ -4,7 +4,8 @@ experiment_name: 'simplier_embeddings_performance'
 label_column: 'spam_label'
 target_column: 'payload'
 number_of_uncertain: 500
-threshold: 0.98 
+confidence_score_threshold: 0.98
+similarity_threshold: 0.90
  
 database:
   host: '10.168.51.196'

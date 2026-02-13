@@ -30,7 +30,8 @@ class ProjectConfig(BaseModel):
     label_column: str
     target_column: str
     number_of_uncertain: int
-    threshold: float
+    confidence_score_threshold: float
+    similarity_threshold: float
     initial_data: str
     test_data: str
     labeled_data: str

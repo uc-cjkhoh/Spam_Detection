@@ -129,11 +129,12 @@ class VectorStore:
 
 
     @task(name="Label uncertain data", cache_policy=NO_CACHE)
-    def label_uncertains(self, sentences: list) -> tuple[np.ndarray, np.ndarray]:
+    def label_uncertains(self, embeddings: np.ndarray, similarity_threshold: float) -> tuple[np.ndarray, np.ndarray]:
         """Label uncertain embeddings with vectorstore's similarity search
 
         Args:
-            sentences (list): uncertain embeddings for model to label
+            embeddings (np.ndarray): uncertain embeddings for model to label
+            similarity_threshold (float): threshold to label them with confidence
 
         Raises:
             TypeError: if parameter's name is wrong, type is wrnog or missing
@@ -142,33 +143,39 @@ class VectorStore:
             tuple[np.ndarray, np.ndarray]: list of binary labels
         """
         
-        if not isinstance(sentences, list):
+        if not isinstance(embeddings, np.ndarray):
             raise TypeError('Sentences need to be in list type')
          
         logger = get_run_logger()
          
-        labels_status = []
-        labels = []
+        labels_status = [-1] * len(embeddings)
+        labels = [-1] * len(embeddings)
         
         try:
-            for sentence in tqdm(sentences):
-                top_k_labels = []
+            for i, embedding in tqdm(enumerate(embeddings)):
+                current_embedding = np.asarray(embedding).squeeze()
                 
-                docs = self.faiss.similarity_search(query=sentence, k=50)
-                for doc in docs:
-                    top_k_labels.append(doc.metadata['label'])
+                nearest_doc = self.faiss.similarity_search_by_vector(current_embedding, k=1)
                 
-                labels.append(stats.mode(np.asarray(top_k_labels)).mode)
+                id = nearest_doc[0].id
+                nearest_label = nearest_doc[0].metadata['label']
+                nearest_doc_index = 0
                 
-                counts = np.bincount(top_k_labels) / len(top_k_labels)
-                entropy = -1 * np.sum([p * np.log2(p) for p in counts])
+                for index, item_id in self.faiss.index_to_docstore_id.items():
+                    if item_id == id:
+                        nearest_doc_index = index
                 
-                if entropy < 0.8:
-                    labels_status.append(-1)
+                nearest_embeddings = self.faiss.index.reconstruct(nearest_doc_index)
+                
+                similarity_score = cosine_similarity(nearest_embeddings.reshape(1, -1), current_embedding.reshape(1, -1))
+                
+                if np.asarray(similarity_score).squeeze() > similarity_threshold: 
+                    labels[i] = nearest_label
+                    labels_status[i] = 1
                 else:
-                    labels_status.append(1)
+                    labels_status[i] = -1
                     
-            return np.asarray(labels_status), np.asarray(labels)
+            return labels_status, labels
         
         except KeyError as e:
             logger.error(f'Invalid key: {e}', exc_info=True)
