@@ -1,7 +1,3 @@
-from dotenv import load_dotenv
-from pathlib import Path
-load_dotenv(Path(__file__).parents[2] / ".env")
-
 import os
 import joblib 
 import mlflow
