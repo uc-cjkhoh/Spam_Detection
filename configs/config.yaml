@@ -1,5 +1,5 @@
 mlflow_uri: 'http://10.168.49.12:5000'
-experiment_name: 'initial_data+new_initial_data_V2'
+experiment_name: 'high_penalty_on_fp'
 
 label_column: 'spam_label'
 target_column: 'payload'

@@ -100,7 +100,7 @@ class LGBM(ModelBoneStructure):
         super().__init__( 
             model_config=ModelBoneStructureConfig( 
                 model_name=model_name,
-                model=LGBMClassifier(class_weight='balanced')
+                model=LGBMClassifier(class_weight={0: 10, 1: 1})
             )
         )
             
