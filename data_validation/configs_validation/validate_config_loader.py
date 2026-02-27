@@ -6,7 +6,8 @@ class DatabaseConfig(BaseModel):
     port: int
     user: str
     password: str
-    table_schema: str    
+    table_schema: str
+    table_to_save_result: str
     
 
 class EmbeddingConfig(BaseModel):

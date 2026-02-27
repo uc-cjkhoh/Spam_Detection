@@ -59,8 +59,7 @@ def send_request(params: ClassifyRequest) -> tuple[np.ndarray, np.ndarray]:
      
     for i in tqdm(range(0, len(payloads), rate)):
         data = {'id': ids[i:i+rate], 'payload': payloads[i:i+rate]}
-        _ = requests.post(api_uri, json=data).json() 
-      
+        response = requests.post(api_uri, json=data)
 
 def main(): 
     config = get_config()
@@ -80,19 +79,28 @@ def main():
         RetrieveData(
             engine=engine, 
             query="""
-                select 
-                    id,
+                select
+                    id, 
+                    payload,
+                    spam_label_update as spam_label
+                from 
+                    sms_spam_cd.new_initial_data
+                where 
+                    day(datetime) = 6
+                UNION ALL
+                select
+                    id, 
                     payload,
                     spam_label
-                from 
-                    sms_spam_cd.initial_data 
-                where 
-                    day(datetime) = 22 
+                from
+                    sms_spam_cd.initial_data
+                where
+                    day(datetime) = 22
                 """
             )) 
     
     start = time.perf_counter()  
-    send_request(ClassifyRequest(api_uri='http://10.168.49.12:7654/classify', data=data, rate=1))
+    send_request(ClassifyRequest(api_uri='http://10.168.49.12:7654/classify', data=data, rate=32))
     end = time.perf_counter()
     
     print(f'Runtime: {end - start:.6f} seconds') 

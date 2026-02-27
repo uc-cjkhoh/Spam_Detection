@@ -1,5 +1,5 @@
 mlflow_uri: 'http://10.168.49.12:5000'
-experiment_name: 'simplier_embeddings_performance'
+experiment_name: 'initial_data+new_initial_data_V2'
 
 label_column: 'spam_label'
 target_column: 'payload'
@@ -13,6 +13,7 @@ database:
   user: 'unified'
   password: 'unified'
   table_schema: 'sms_spam_cd'
+  table_to_save_result: 'label_by_vectordb'
 
  
 embedding:
@@ -33,10 +34,18 @@ vectorstore:
 initial_data: 
   'select 
     payload,
-    spam_label
+    spam_label_update as spam_label
   from 
-    sms_spam_cd.initial_data 
+    sms_spam_cd.new_initial_data
   where 
+    day(datetime) != 6
+  UNION ALL
+  select 
+    payload,
+    spam_label
+  from
+    sms_spam_cd.initial_data
+  where
     day(datetime) != 22
   '
 
@@ -44,11 +53,19 @@ initial_data:
 test_data:
   'select 
     payload,
-    spam_label
+    spam_label_update as spam_label
   from 
-    sms_spam_cd.initial_data 
+    sms_spam_cd.new_initial_data
   where 
-    day(datetime) = 22 
+    day(datetime) = 6
+  UNION ALL
+  select 
+    payload,
+    spam_label
+  from
+    sms_spam_cd.initial_data
+  where
+    day(datetime) = 22
   '
 
  
@@ -77,7 +94,8 @@ stratified_sampling:
     FROM
         sms_spam_cd.data_tdr_spam_filter 
     where
-      DAY(current_datetime) = 22 
+      YEAR(current_datetime) = 2026
+      AND DAY(current_datetime) = 6
   )
   SELECT
     id,

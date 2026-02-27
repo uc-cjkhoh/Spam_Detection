@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime  
 from lightgbm.sklearn import LGBMClassifier 
 from mlflow.exceptions import MlflowTracingException, RestException
+from sklearn.metrics import accuracy_score, classification_report
 
 from prefect import task, get_run_logger
 from prefect.cache_policies import NO_CACHE 
@@ -48,9 +49,7 @@ class ModelBoneStructure():
                     x_test,
                     columns=[f"f{i}" for i in range(x_test.shape[1])]
                 )
-                
-                y_s = pd.Series(y_test, name="y_test")
-
+                 
                 signature = mlflow.models.signature.infer_signature(
                     x_df, self.model.predict(x_df)
                 )
@@ -64,7 +63,13 @@ class ModelBoneStructure():
                 )  
                 
                 eval_data = x_df.copy()
-                eval_data["y_test"] = y_s
+                eval_data["y_test"] = np.array(y_test).flatten()
+                
+                # Check if model can predict all classes
+                y_pred_proba = self.model.predict_proba(x_df)
+                if y_pred_proba.shape[1] != len(np.unique(y_test)):
+                    logger.warning("Model predict_proba does not have probabilities for all classes in y_test, skipping MLflow evaluation")
+                    return
     
                 mlflow.models.evaluate(
                     model_info.model_uri,
@@ -95,7 +100,7 @@ class LGBM(ModelBoneStructure):
         super().__init__( 
             model_config=ModelBoneStructureConfig( 
                 model_name=model_name,
-                model=LGBMClassifier()
+                model=LGBMClassifier(class_weight='balanced')
             )
         )
             

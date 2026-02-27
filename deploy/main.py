@@ -97,9 +97,9 @@ async def classify(item: InputData, background_tasks: BackgroundTasks):
     embedding = embedding_model.embed_documents(item.payload)
     
     n, features_dim = features.shape
-    e_dim = embedding.shape[1]
+    e_dim = np.array(embedding).shape[1]
     
-    x = np.empty(n, features_dim + e_dim)
+    x = np.empty((n, features_dim + e_dim))
     x[:, :features_dim] = features
     x[:, features_dim:] = embedding
     

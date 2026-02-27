@@ -193,6 +193,7 @@ def load_testing_data(config, database, embedding_model, scaler) -> tuple[np.nda
     
     try:
         test_data = database.get_records(config.test_data) 
+        test_data = test_data.dropna(subset=[config.label_column])  # Filter out rows with null labels
         test_payloads = test_data[config.target_column]
         test_labels = test_data[config.label_column]
         
@@ -202,7 +203,7 @@ def load_testing_data(config, database, embedding_model, scaler) -> tuple[np.nda
         test_embeddings = embedding_model.embed_documents(test_payloads)
         combined_test_embeddings = np.hstack((test_features, test_embeddings))
         
-        return combined_test_embeddings, test_labels.to_numpy()
+        return combined_test_embeddings, test_labels.to_numpy().astype(int)
     
     except KeyError as e:
         logger.error(f'Invalid config key: {e}', exc_info=True)
@@ -237,47 +238,47 @@ def main():
     logger.info('Evaluate model')
     model.evaluate(x_test, y_test)
 
-    logger.info('Select new batch of data')
-    stratified_data = database.get_records(config.stratified_sampling)
-    new_batch_data_id = stratified_data['id'] 
-    new_batch_data_dt = stratified_data['current_datetime']
-    new_batch_data_msg = stratified_data['payload']
+    # logger.info('Select new batch of data')
+    # stratified_data = database.get_records(config.stratified_sampling)
+    # new_batch_data_id = stratified_data['id'] 
+    # new_batch_data_dt = stratified_data['current_datetime']
+    # new_batch_data_msg = stratified_data['payload']
     
-    logger.info('Preprocessing new batch of data')
-    new_batch_data_features = feature_engineering(new_batch_data_msg.copy())
-    new_batch_data_features = scaler.transform(new_batch_data_features)
+    # logger.info('Preprocessing new batch of data')
+    # new_batch_data_features = feature_engineering(new_batch_data_msg.copy())
+    # new_batch_data_features = scaler.transform(new_batch_data_features)
     
-    new_batch_data_embedding = embedding_model.embed_documents(new_batch_data_msg)
-    new_x_train = np.hstack((new_batch_data_features, new_batch_data_embedding))
+    # new_batch_data_embedding = embedding_model.embed_documents(new_batch_data_msg)
+    # new_x_train = np.hstack((new_batch_data_features, new_batch_data_embedding))
     
-    logger.info('Perform classification with base model')
-    result = model.predict(new_x_train)
-    confidence_score = model.predict_proba(new_x_train)
+    # logger.info('Perform classification with base model')
+    # result = model.predict(new_x_train)
+    # confidence_score = model.predict_proba(new_x_train)
     
-    logger.info('Retrieve high confidence prediction result')
-    high_conf_ids = np.where(confidence_score >= config.threshold)[0]
+    # logger.info('Retrieve high confidence prediction result')
+    # high_conf_ids = np.where(confidence_score >= config.confidence_score_threshold)[0]
      
-    logger.info('Retrieve uncertain data')
-    uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), config.number_of_uncertain)[:config.number_of_uncertain]
+    # logger.info('Retrieve uncertain data')
+    # uncertain_ids = np.argpartition(np.abs(confidence_score - 0.5), config.number_of_uncertain)[:config.number_of_uncertain]
     
-    logger.info('Generate a column to tell data requires human inspection')
-    label_status = np.zeros(confidence_score.shape)
-    label_status[high_conf_ids] = 1
-    label_status[uncertain_ids] = -1
+    # logger.info('Generate a column to tell data requires human inspection')
+    # label_status = np.zeros(confidence_score.shape)
+    # label_status[high_conf_ids] = 1
+    # label_status[uncertain_ids] = -1
     
-    logger.info('Send data to MySQL')
-    database.save_to_mysql(
-        data=pd.DataFrame({
-            'id': new_batch_data_id,
-            'datetime': new_batch_data_dt,
-            'spam_label': result,
-            'confidence_score': confidence_score,
-            'label_status': label_status,
-            'model': type(model).__name__
-        }),
-        destination_table=config.table_to_save_result,
-        on_duplicate=['spam_label', 'confidence_score', 'label_status', 'model', 'iter_involved']
-    )
+    # logger.info('Send data to MySQL')
+    # database.save_to_mysql(
+    #     data=pd.DataFrame({
+    #         'id': new_batch_data_id,
+    #         'datetime': new_batch_data_dt,
+    #         'spam_label': result,
+    #         'confidence_score': confidence_score,
+    #         'label_status': label_status,
+    #         'model': type(model).__name__
+    #     }),
+    #     destination_table=config.database.table_to_save_result,
+    #     on_duplicate=['spam_label', 'confidence_score', 'label_status', 'model', 'iter_involved']
+    # )
      
     database.close_connection() 
 
