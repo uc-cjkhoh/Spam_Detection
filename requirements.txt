@@ -25,3 +25,4 @@ tqdm
 lightgbm
 shap
 fastapi
+python-dotenv
